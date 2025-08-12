@@ -1,0 +1,4904 @@
+README FILE FOR THE GLOBAL HISTORICAL CLIMATOLOGY NETWORK hourly (GHCNh)
+Version 1.0.1
+For general questions about GHCNh data access, please email info@ncei.noaa.gov.
+For technical questions not covered in this documentation, please email ncei.ghcnh@noaa.gov.
+General information on the GHCNh dataset can be found here:
+https://www.ncei.noaa.gov/products/global-historical-climatology-network-hourly and
+https://www.ncei.noaa.gov/metadata/geoportal/rest/metadata/item/gov.noaa.ncdc:C01688/html#
+This README file can be accessed at
+https://www.ncei.noaa.gov/oa/global-historical-climatology-network/hourly/doc/ghcnh
+_
+NTATION.pdf with other GHCNh documentation at
+https://www.ncei.noaa.gov/oa/global-historical-climatology-network/index.html#hourly/doc/.
+Descriptions of the documentation are below.
+Table of Contents
+DOCUME
+I. DOWNLOAD QUICK START
+II. Format of the “ghcnh-station-list” Files
+III. Format of the Data Files
+(A) Pipe-Separated Value (.psv) Data Files
+(B) Parquet Format Data Files
+IV. List of Elements/Variables
+Table 1: Elements/Variables
+V. List of Measurement Codes
+Table 2: Element Measurement Codes (where applicable)
+VI. List of Quality Check Codes
+Table 3: QC (code varies by source)
+VII. List of Report Type and Source Flag Codes
+Table 4: Report type codes
+Table 4(a): Source flag codes
+VIII. Present Weather Code Descriptors
+Table 5(a-c): Present Weather Element and Measurement Codes
+“Hourly” Precipitation Measurements
+X. Columns and Headers in PSV Files
+IX.
+XI. List of Data Source Codes and Attributes
+Table 6: Data Source Codes
+I. DOWNLOAD QUICK START
+Bulk GHCNh station data download access is available in three ways:1. 2. 3. Period of record station files (data for all years and variables for a particular station)
+Station/year files (one year of data for a particular station)
+A tar file of all stations with data in a particular year (see below)
+Data Access
+Locations
+●
+HTTPS WAF:
+1. https://www.ncei.noaa.gov/oa/global-historical-climatology-network/index.ht
+ml#hourly/access/by-station/GHCNh
+<station>
+_
+_por.psv
+2. https://www.ncei.noaa.gov/oa/global-historical-climatology-network/index.ht
+ml#hourly/access/by-year/<YYYY>/GHCNh
+<station>
+_
+_
+<YYYY>.psv
+3. https://www.ncei.noaa.gov/oa/global-historical-climatology-network/index.ht
+ml#hourly/archive/<archived files>
+Where <station> refers to the GHCN identifier
+●
+Example file URL:
+●
+https://www.ncei.noaa.gov/oa/global-historical-climatology-network/hourly/
+access/by-year/2023/psv/GHCNh
+USW00003812
+_
+_
+2023.psv
+For the tar files containing all stations with data for a particular year under the /archive directory,
+the naming convention is as follows:
+File Name Pattern ghcn-hourly_
+v1.a.b
+dYYYY
+_
+_
+cYYYYMMDD.tar.gz
+File Name Field Definitions ghcn-hourly = ProductShortName
+d = data date (i.e., the year provided in the file)
+c = creation date
+v1.<a.b> = version number
+YYYYMMDD = date
+tar = tar file
+gz = zipped
+The tar file can be untarred and uncompressed by using, e.g., the following Linux command:
+tar xzvf ghcn-hourly_
+v1.a.b
+dYYYY
+_
+_
+cYYYYMMDD.tar.gz
+ALTERNATIVELY, if you need data for only one or a few specific stations you can:
+- Find the station name and identifier in the "ghcnh-station-list" file (e.g., PHOENIX AP [Airport]
+is "USW00023183"); and
+- Then download the data file (i.e., the "
+.psv" file) for that GHCNh station identifier
+(e.g.,
+"GHCNh
+USW00023183
+_
+_por.psv" has the data for the whole period of record for the
+PHOENIX AP) in the /access folder:
+https://www.ncei.noaa.gov/oa/global-historical-climatology-network/index.html#hourly/access/
+Within the
+https://www.ncei.noaa.gov/oa/global-historical-climatology-network/index.html#hourly/access/by-year/<year>/ directory there are psv and Parquet directories for station-by-year data files.
+See Section III on data file formats.
+Within the
+https://www.ncei.noaa.gov/oa/global-historical-climatology-network/index.html#hourly/access/b
+y-station/ directory there are entire period-of-record (“por”) psv files for each station.
+On the main access link,
+https://www.ncei.noaa.gov/oa/global-historical-climatology-network/index.html#hourly/, along
+with the /access, /archive and /doc folders, there is an /inventory folder which contains
+JSON-formatted station inventory files. These are metadata files used by NCEI access tools that
+facilitate searching by aggregating the minimum and maximum dates for elements within each
+GHCNh file. These files will likely not be useful for public use.
+To view a list of GHCNh station names and geographic coordinates, download the
+"ghcnh-station-list.txt” or “ghcnh-station-list.csv” from this /doc folder:
+https:/ /www.ncei.noaa.gov/oa/global-historical-climatology-network/index.html#hourly/doc/<files>
+The names and coordinates come from dataset inventories provided by the data source
+providers. See Section II for details. In addition to the ghcnh station list file, the
+“ghcnh-inventory.txt” file provides the total number of records by month for the period of record
+associated with each GHCNh station.
+II. Format of the “ghcnh-station-list” Files
+The ghcnh-station-list.txt (and csv) files provide an inventory of the GHCNh identifiers and
+coordinates. The same information is provided in NCEI’s Historical Observing Metadata
+Repository (HOMR) database.
+--------------------------------------------------------
+Variable, Columns (for fixed format), Type
+--------------------------------------------------------
+ID, 1-11, Character
+LATITUDE,13-20, Real
+LONGITUDE, 22-30, Real
+ELEVATION, 32-37, Real
+STATE, 39-40, Character
+NAME, 42-71, Character
+GSN FLAG, 73-75, Character
+HCN/CRN FLAG, 77-79, Character
+WMO ID, 81-85, Character
+ICAO, 87-90, Character
+------------------------------GHCN identifiers are 11 characters beginning with the country’s FIPS 10-4 code (2 characters),
+a network code identifying the station numbering system used (1 character), and finally the
+station identifier (8 characters). For U.S. stations with a network code of “W” (most airport sites),
+the last 5 digits of the GHCN station identifier is the WBAN ID. For example, Chicago’s O’Hare
+Airport has a WBAN ID of ‘94846’ and the GHCN identifier is ‘USW00094846’
+.
+These variables have the following definitions:
+ID=the station identification code. Note that the first two
+characters denote the FIPS 10-4 country code, the third character
+is a network code that identifies the station numbering system
+used, and the remaining eight characters contain the actual
+station ID.
+See ghcn-countries.txt file for a complete list of country codes.
+See ghcn-states.txt file for a list of state/province/territory codes.
+The network code has the following potential values:
+A = Retired WMO Identifier used by the USAF 14th Weather Squadron
+U = unspecified (station identified by up to eight alphanumeric characters)
+C = U.S. Cooperative Network identification number (last six characters of the GHCN ID)
+I = International Civil Aviation Organization (ICAO) identifier
+M = World Meteorological Organization ID (last five characters of the GHCN ID)
+N = Identification number used by a National Meteorological or Hydrological Center
+partner
+L = U.S. National Weather Service Location Identifier (NWSLI)
+W = WBAN identification number (last five characters of the GHCN ID)
+LATITUDE= latitude of the station (in decimal degrees). North (+); South (-)
+LONGITUDE=the longitude of the station (in decimal degrees). East (+); West (-)
+ELEVATION=the elevation of the station (in meters, missing = -999.9).
+STATE=the U.S. postal code for the state (for U.S. stations only).
+NAME=the name of the station.
+GSN FLAG=a flag that indicates whether the station is part of the GCOS
+Surface Network (GSN). The flag is assigned by cross-referencing
+the number in the WMO ID field with the official list of GSN
+stations. There are two possible values:
+Blank = non-GSN station or WMO Station number not availableGSN = GSN station
+HCN/=a flag that indicates whether the station is part of the U.S.
+CRN FLAG=Historical Climatology Network (HCN) or U.S. Climate Reference
+Network (CRN). There are three possible values:
+Blank = Not a member of the U.S. Historical Climatology
+or U.S. Climate Reference Networks
+HCN CRN = U.S. Historical Climatology Network station
+= U.S. Climate Reference Network or U.S. Regional Climate
+Network Station
+WMO ID=the World Meteorological Organization (WMO) number for the
+station. If the station has no WMO number (or one has not yet
+been matched to this station), then the field is blank.
+III. Format of the Data Files
+(A) Pipe-Separated Value (.psv) Data Files
+Each station “psv” file is made up of a unique identifier and time step followed by 38 variable
+fields, each with 5 associated metadata/attribute fields (see below for further details). All fields
+are “pipe” separated (pipe = “|”). Each of the variables and metadata fields are described with
+explicit names in a header line at the beginning of each station file. Note that the header length
+is quite long and is also pipe delimited.
+Pipe-separated (.psv) files can easily be viewed with spreadsheet programs (e.g. Excel) by
+specifying the delimiter as a pipe “|”
+.
+The variable names and attribute fields are described below:
+First, each station record is indexed to a single GHCN Station
+_
+ID and accompanying
+Station
+_
+name, Latitude, Longitude and Elevation, which were extracted from metadata provided
+by one or more data sources. Each observation is also indexed to a single Year, Month, Day,
+Hour and Minute in Coordinated Universal Time (UTC). Following the identifier, coordinates and
+time stamp for the observation, there are 38 sets of observations for 38 variables and their
+accompanying metadata/attributes as follows:
+variable (see section IV, Table 1)
+variable
+Measurement
+_
+_
+Code (see section V, Table 2)
+variable
+_
+Quality_
+Code (see section VI, Table 3)
+variable
+_
+Report
+_
+Type (see section VII, Table 4)
+variable
+Source
+_
+_
+Code (see section XI, Table 6)variable
+Source
+Station
+_
+_
+_
+ID (original identifier provided in the data source)
+Where variable refers to the list of variables in Table 1 and their units. A list of potential
+Measurement
+_
+Codes by variable type is provided in Table 2. The list of Quality_
+Codes is
+provided in Table 3. Table 4 provides the list of possible report types. A comprehensive list of
+column names are provided in Section X “Columns and Headers in PSV Files” below.
+(B) Parquet Format Data Files
+Parquet is an open-source file format with easily-indexed columns designed for efficient data
+storage and retrieval. These files can be read easily using Python.
+https://arrow.apache.org/docs/python/parquet.html
+IV. List of Elements/Variables
+Table 1: Elements/Variables
+temperature = 2 meter (circa) Above Ground Level Air (dry bulb) Temperature (⁰C to tenths)
+dew
+_point
+_
+temperature = Dew Point Temperature (⁰C to tenths)
+station
+level
+_
+_pressure = the pressure that is observed at a specific elevation and is the true
+barometric pressure of a location. It is the pressure exerted by the atmosphere at a point
+as a result of gravity acting upon the "column" of air that lies directly above the point.
+(hPa)
+sea
+level
+_
+_pressure = reduction estimates the pressure that would exist at sea level at a point
+directly below the station using a temperature profile based on temperatures that actually
+exist at the station (hPa)
+wind
+_
+direction = Wind Direction from true north using compass directions (e.g. 360 = true north,
+180 = south, 270 = west, etc.). Note: A direction of “000” is given for calm winds.(whole
+degrees)
+wind
+_
+speed = Wind Speed (meters per second)
+wind
+_gust = Peak short duration (usually < 20 seconds) wind speed (meters per second) that
+exceeds the wind
+_
+speed average
+precipitation = total liquid precipitation (rain or melted snow). Totals are nominally for the hour,
+but may include intermediate reports within the hour. Please refer to Section IX
+“Hourly” Precipitation Measurements for important details on precipitation totals; a “T”
+in the measurement code column indicates a trace amount of precipitation (millimeters)relative
+_
+humidity = Depending on the source, relative humidity is either measured directly or
+calculated from air (dry bulb) temperature and dew point temperature (whole percent)
+wet
+bulb
+_
+_
+temperature = Depending on the source, wet bulb temperature is either measured
+directly or calculated from air (dry bulb) temperature, dew point temperature, and station
+pressure (⁰C to tenths)
+pres
+wx
+_
+pres
+wx
+_
+MW1 = Present weather observation; MW1 - MW3 is sourced from manual reports; up
+to 3 observations per report (code)
+MW2 = see above
+_
+_
+pres
+wx
+_
+_
+MW3 = see above
+pres
+wx
+_
+pres
+wx
+AU1 = Present weather observation; AU1 - AU3 is sourced from automated
+_
+ASOS/AWOS sensors; up to 3 observations per report (code)
+AU2 = see above
+_
+_
+pres
+wx
+AU3 = see above
+_
+_
+pres
+wx
+_
+pres
+wx
+AW1 = Present weather observation; AW1 - AW3 is sourced from automated sensors;
+_
+up to 3 observations per report (code)
+AW2 = see above
+_
+_
+pres
+wx
+_
+_
+AW3 = see above
+snow
+_
+depth = depth of snowpack on the ground (millimeters)
+visibility = horizontal distance at which an object can be seen and identified (kilometers)
+altimeter = the pressure "reduced" to mean sea level using the temperature profile of the
+"standard" atmosphere, which is representative of average conditions over the United
+States at 40 degrees north latitude (millibars/hPa)
+pressure
+3hr
+_
+_
+change = change in atmospheric pressure measured at the beginning and end of
+a three hour period; accompanied by tendency code in measurement code field
+(millibars/hPa)
+sky_
+cover
+_
+1 = Fraction of total celestial dome with sky coverage; defines a layer in oktas (i.e.
+eights) or tenths of sky covered by cloud; up to 3 observations (code); see Table 2 for
+sky cover code definitions
+sky_
+cover
+2 = see above
+_
+sky_
+cover
+3 = see above
+_
+Note: Since up to 3 cloud layers can be reported, the full state of the sky can best be
+determined by the last layer's value. In other words if three layers are reported and the
+third layer uses BKN then the total state of sky is BKN which is similar in definition to
+“mostly cloudy.
+” OVC is similar to “cloudy” or overcast and FEW or SCT is similar to“partly cloudy.
+” In cases where there are more than 3 cloud layers, the highest layers will
+not be reported.
+Values in oktas:
+CLR:00 None, SKC or CLR
+FEW:01 One okta - 1/10 or less but not zero
+FEW:02 Two oktas - 2/10 - 3/10, or FEW
+SCT:03 Three oktas - 4/10
+SCT:04 Four oktas - 5/10, or SCT
+BKN:05 Five oktas - 6/10
+BKN:06 Six oktas - 7/10 - 8/10
+BKN:07 Seven oktas - 9/10 or more but not 10/10, or BKN
+OVC:08 Eight oktas - 10/10, or OVC
+VV:09 Sky obscured, or cloud amount cannot be estimated
+X:10 Partial obscuration
+sky_
+cover
+baseht
+_
+_
+1 = Discrete cloud base heights at lowest point of layer; up to 3 vertical
+layers can be reported; clear skies reported as a single layer (meters)
+sky_
+cover
+baseht
+2 = see above
+_
+_
+sky_
+cover
+baseht
+3 = see above
+_
+_
+precipitation
+3
+_
+_
+hour = 3-hour total liquid precipitation (rain or melted snow) accumulation from
+FM12/SYNOP reports; a “T” in the measurement code column indicates a trace amount
+of precipitation (millimeters); accumulations can be reported over 3, 6, 9, 12, 15, 18, 21
+and 24 hours.
+precipitation
+6
+hour = see above
+_
+_
+precipitation
+9
+hour = see above
+_
+_
+precipitation
+12
+hour = see above
+_
+_
+precipitation
+15
+hour = see above
+_
+_
+precipitation
+18
+hour = see above
+_
+_
+precipitation
+21
+hour = see above
+_
+_
+precipitation
+24
+hour = see above
+_
+_
+remarks = Hourly Remarks present the raw surface observation data in the original format
+encoded into ICAO-standardized METAR (FM15) or FM12 (SYNOP), FM16 (SPECI) etc
+format for global dissemination. Further information on decoding these observations can
+be found in the Federal Meteorological Handbook (FMH) No. 1, Surface Weather
+Observations & Reports.
+V. List of Measurement Codes
+Table 2: Element Measurement Codes (where applicable)Note: In some cases, the measurement code is shown as '9-Missing'
+. This simply means that
+there was no measurement code provided by the data source and can be interpreted as a blank
+field. In future versions of GHCNh,
+'9-Missing' will be replaced with a blank field for all sources.
+Wind Speed / Wind Direction:
+A-Abr-Beauf
+B-Beaufort
+C-Calm
+H-5min-avg-spd
+N-Normal
+R-60min-avg-spd
+Q-Squall
+T-180min-avg-spd
+V-Variable
+9-Missing
+Atmospheric Pressure Tendency (3-hour pressure change):
+Note: in general a 0 through 3 here indicates an increase in pressure over the previous 3 hours
+and a 5 through 8 indicates a decrease over the previous 3 hours and 4 indicates no change
+during the previous 3 hours).
+0-Incr-then-decr;-atm-pres-same-or-higher-than-3-hrs-ago
+1-Incr-then-steady;-or-incr.
+-then-incr-more-slowly;-atm-pres-now-higher-than-3-hrs-ago
+2-Incr-(steadily-or-unsteadily);-atm-pres-now-higher-than-3-hrs-ago
+3-Decr-or-steady,
+-then-incr;-or-incr,
+-then-incr-more-rapidly;-atm-pres-now-higher-than-3-hrs-ago
+4-Steady;-atm-pres-the-same-as-3-hrs-ago
+5-Decr,
+-then-incr;-atm-pres-the-same-or-lower-than-3-hrs-ago
+6-Decr,
+-then-steady;-or-decr,
+-then-decr-more-slowly;-atm-pres-now-lower-than-3-hrs-ago
+7-Decr-(steadily-or-unsteadily);-atm-pres-now-lower-than-3-hrs-ago
+8-Steady-or-incr,
+-then-decr;-or-decr,
+-then-decr-more-rapidly;-atm-pres-now-lower-than-3-hrs-ag
+o
+9-Missing
+Visibility (code varies by source)
+Sources 220, 221, 222, 223, 347, 348
+A-Aircraft-horiz-vis
+L-Aircraft-slant-rng-vis
+M-Max
+N-Min
+P-Prevailing
+S-Sector
+9-Missing
+Sources: 313, 314, 315, 322, 335, 343, 344, 345, 346
+N-Not-variableV-Variable
+9-Missing
+Precipitation (code varies by source)
+Sources: 313, 314, 315, 335, 343, 344, 345, 346, 322
+0-None
+1-Measurement-impossible-or-inaccurate
+2-Trace
+3-Measurable
+9-Missing
+Sources: 220, 221, 222, 223, 347, 348
+1-Measurement-impossible-or-inaccurate
+2-Trace
+3-Begin-accumulated-period-(precipitation-amount-missing-until-end-of-accumulated-period)
+4-End-accumulated-period
+5-Begin-deleted-period-(precipitation-amount-missing-due-to-data-problem)
+6-End-deleted-period
+7-Begin-missing-period
+8-End-missing-period
+E-Estimated-data-value-(eg-from-nearby-station)
+I-Incomplete-precipitation-amount,
+-excludes-one-or-more-missing-reports,
+-such-as-one-or-more
+-15-minute-reports-not-included-in-the-1-hour-precipitation-total
+J-Incomplete-precipitation-amount,
+-excludes-one-or-more-erroneous-reports,
+-such-as-one-or-m
+ore-1-hour-precipitation-amounts-excluded-from-the-24-hour-total
+9-Missing
+Source: 382
+Blank = no measurement information applicable
+XX-hr-accum = where XX is the number of hours for the precipitation
+accumulation period.
+g = a carry-over measurement flag from the DSI-3240 dataset
+which was used only on the very first hour of the month
+if there was zero precipitation during that hour. The purpose
+of this flag was mainly to indicate that the station was
+functional and reporting during the month. Normally in
+DSI-3240, zero precipitation amounts were not included in the
+data file in order to save space. This HPD dataset does
+include zero precipitation totals, both those assumed from
+the DSI-3240 dataset and those determined from the digital
+recordings of bucket level data.
+Z = represents an "assumed" zero precipitation total. Usually
+these are values from the DSI-3240 dataset. The rule in that
+dataset was to "assume" a zero total for any hour wherenothing else was reported or indicated for that hour as long
+as the very first hour of the month had a non-zero amount or
+a zero amount with the "g" measurement flag. Zero amounts
+were omitted from the DSI-3240 dataset in order to save disk
+space. We are not concerned with that anymore.
+E = Evaporation may have occurred. Data may or may not be reliable.
+This flag was used during the period 1984-1993.
+T = trace of precipitation
+Sky cover:
+00-None,SKC-or-CLR
+01-One-okta-1/10-or-less-but-not-zero
+02-Two-oktas-2/10-3/10-or-FEW
+03-Three-oktas-4/10
+04-Four-oktas-5/10,
+-or-SCT
+05-Five-oktas-6/10
+06-Six-oktas-7/10-8/10
+07-Seven-oktas-9/10-or-more-but-not-10/10,
+-or-BKN
+08-Eight-oktas-10/10,
+-or-OVC
+09-Sky-obscured,
+-or-cloud-amount-cannot-be-estimated or sky obscured by fog and/or other
+meteorological phenomena
+10-Partial-obscuration
+99-Missing
+Snow depth (code varies by source):
+Sources: 220, 221, 222, 223, 347, 348
+0-None
+1-Unmeasurable
+2-Snow-cover-not-continuous
+3-Measurable
+9-Missing
+Sources: 313, 314, 315, 322, 335, 343, 344, 346
+1-Measurement-impossible-or-inaccurate
+2-Snow-cover-not-continuous
+3-Trace
+4-End-accumulated-period-(data-include-more-than-one-day)
+5-End-deleted-period-(data-eliminated-due-to-quality-problems)
+6-End-missing-period
+E-Estimated-data-value-(eg,
+-from-nearby-station)
+9-Missing
+Relative humidity
+Sources: 220, 221, 222, 223, 313, 314, 315, 322, 335, 343, 344, 346, 347, 348D-Derived (values were calculated using air (dry bulb) temperature and dew point temperature)
+Wet-bulb temperature
+Sources: 220, 221, 222, 223, 313, 314, 315, 322, 335, 343, 344, 346, 347, 348
+D-Derived (values were calculated using air (dry bulb) temperature, dew point temperature, and
+station pressure)
+VI. List of Quality Check Codes
+Table 3: QC (code varies by source)
+A general set of quality control checks is applied to a subset of variables after all sources are
+integrated into a set of unique period of record station files. These checks are based on those
+described in Dunn et al. (2016) (https://gi.copernicus.org/preprints/gi-2016-9/gi-2016-9.pdf). In
+addition, GHCNh preserves the Quality Control information of its component (legacy) sources.
+The set of general flags that apply to the integrated set of sources and the variables
+temperature, dew
+_point
+_
+temperature, station
+level
+_
+_pressure, sea
+level
+_
+_pressure,
+wind
+direction, and wind
+_
+_
+speed
+Note: In some cases, the quality code is shown as '9-Missing'
+. This simply means that there
+was no quality code provided by the data source and can be interpreted as a blank field. In
+future versions of GHCNh,
+'9-Missing' will be replaced with a blank field for all sources.
+The list of codes include:
+"L" : "0,
+"
+, # failed Logical consistency
+"o" : "1,
+"
+, # outlier check
+"F" : "2,
+"
+, # Frequent value check
+"U" : "3,
+"
+, # diUrnal inconsistency check
+"D" : "4,
+"
+, # Distribution 1
+"d" : "5,
+"
+, # distribution 2
+"W" : "6,
+"
+, # World records exceedance
+"K" : "7,
+"
+, # StreaK check
+"C" : "8,
+"
+, # Climatological outlier
+"T" : "9,
+"
+, # Timestamp issue
+"S" : "10,
+"
+, # Spike check
+"h" : "11,
+"
+, # humidity
+"V" : "12,
+"
+, # Variance
+"w" : "13,
+"
+, # winds
+"N" : "14,
+"
+, # Neighbor comparison outlier
+"E" : "15,
+"
+, # clEan up
+"p" : "16,
+"
+, # pressure
+"H" : "17,
+"
+, # High flag rateThe Legacy Codes for Sources 313, 314, 315, 322, 335, 343, 344, 346 include
+0 = Passed gross limits check
+1 = Passed all quality control checks
+2 = Suspect
+3 = Erroneous
+4 = Passed gross limits check, data originate from an NCEI data source
+5 = Passed all quality control checks, data originate from an NCEI data source
+6 = Suspect, data originate from an NCEI data source
+7 = Erroneous, data originate from an NCEI data source
+9 = Passed gross limits check if element is present
+A – Data value flagged as suspect, but accepted as good value.
+U – Data value replaced with edited value.
+P – Data value not originally flagged as suspect, but replaced by validator.
+I – Data value not originally in data, but inserted by validator.
+M – Manual change made to value based on information provided by NWS or FAA.
+C – Temperature and dew point received from Automated Weather Observing Systems (AWOS)
+are reported in whole degrees Celsius. Automated QC flags these values, but they are accepted
+as valid.
+R – Data value replaced with value computed by NCEI software.
+And Legacy Codes for Sources: 220, 221, 222, 223, 347, 348 include
+0 Not Checked
+1 Good
+2 Suspect
+3 Erroneous
+4 Calculated
+5 Removed
+9 Missing
+Sources: 220, 221, 222, 223, 313, 314, 315, 322, 335, 343, 344, 346, 347, 348
+For these sources, relative humidity and wet-bulb temperature are not directly measured, and
+instead, are derived from other measured variables. These can have the following QC flags:
+o - Out of range (relative humidity only - with values < 1 or > 100)
+f - Suspect or Error flags for 1 or more of the input measurements
+Legacy Codes for Source 382 for precipitation (as given in C-HPD documentation)
+Blank = did not fail any quality assurance check
+X = failed global extreme exceedance check
+N = failed negative precipitation check
+Y = failed state extreme exceedance check (performed on daily totals)
+K = failed streak/frequent-value check
+G = failed gap check
+O = failed climatological outlier check
+Z = flagged as a result of an official Datzilla investigationA = The value is not an hourly precipitation total but rather
+an accumulation total for a period greater than an hour in
+duration and lasting through the end of this hour.
+(See measurement flags "a" and "
+.
+" for the beginning time of
+the accumulation period and times during the accumulation
+period, respectively.) Accumulations across multiple hours
+exist only from the legacy DSI-3240 data source.
+M = represents the associated value at this observation time is
+missing in the DSI-3240 dataset and no alternate data source
+is available. This is a carry-over indicator from DSI-3240 to
+allow the user to distinguish between missing and deleted
+data in that older system. (See the "D" quality flag.)
+However, the most consistent way to identify hours of missing
+data across the entire dataset is to test if the
+precipitation value is equal to the special missing value
+of -9999.
+D = represents the associated value at this time was deleted by
+the DSI-3240 processing system. Usually this was done
+manually by a trained meteorological technician who made the
+decision using ancillary information and experience.
+Q = a carry-over quality flag the legacy DSI-3240 data source.
+Prior to 1996: Indicates value failed an extreme value test
+(value will be present); data are to be used with caution.
+Extremes tests were:
+1) If the value was not an accumulated precipitation total,
+the value failed the one-hour statewide 100-year return
+period precipitation.
+2) If the value was an accumulated precipitation total,
+the value failed the 24-hour statewide extreme
+precipitation total. This flag was assigned during a 1997
+NCDC rehabilitation of the 1900-1995 DSI-3240 archive.
+Since January 1996: A single erroneous datum (value will be
+present). Lowest data resolution is hourly. This flag is
+rarely used in DSI-3240 since 1996.
+q = a carry-over quality flag the legacy DSI-3240 data source.
+Used since January 1996. An hourly value excludes one or
+more 15 minute periods. Lowest data resolution is 15 minutes.
+R = a carry-over quality flag the legacy DSI-3240 data source.
+Used since January 1996. Indicates data values are suspect
+with regard to the times or period of occurrence.
+Legacy Codes for Source 345 (for relative humidity and wind speed only):
+0-Good
+1-Issue (field-length overflow)3-Error (erroneous data)
+VII. List of Report Type and Source Flag Codes
+For some sources, the report
+_
+type columns for each element are truncated to 10 characters.
+They combine the report type code and an abbreviated source flag code with an underscore
+(“
+_
+”) in between. For example, the report
+_
+type “AUTO
+_
+4-USA” refers to the report type code
+“AUTO” and the source flag code “4-USAF-sfc-hrly”
+.
+Table 4: Report type codes
+AERO:AERO-Aerological
+AUST:AUST-Australia
+AUTO:AUTO
+BOGUS:BOGUS
+BRAZ:BRAZ-Brazil
+COOPD:COOPD-USCOOP-SOD
+COOPS:COOPS-USCOOP-soiltemp
+CRB:CRB-Clim-Ref-Book-from-CDMP
+CRN05:CRN05-CRN5min
+CRN15:CRN15-CRN15min
+FM-12:FM12-SYNOP-fixed-land-stn
+FM-13:FM13-SHIP-sea-stn
+FM-14:FM14-SYNOP-MOBIL-mobile-land-stn
+FM-15:FM15-METAR-Aviation-routine-wx
+FM-16:FM16-SPECI-Aviation-selected-special-wx
+FM-18:FM18-BUOY
+GREEN:GREEN-Greenland
+MESOH:MESOH-Hydro-MESONET-civ-govt
+MESOS:MESOS-MESONET-civ-govt
+MESOW:MESOW-Snow-MESONET-civ-govt
+MEXIC:MEXIC-Mexico
+NSRDB:NSRDB-Natl-Sol-Rad-Data-Base
+PCP15:PCP15-US-15-min-precip-network
+PCP60:PCP60-US-60-min-precip-network
+S-S-A:SAA-Synoptic-airways-auto-merged
+SA-AU:SAAU-Airways-auto-merged
+SAO:SAO-Airways-incl-record-specials
+SAOSP:SAOSP-Airways-special-excl-record-specials
+SHEF:SHEF-Std-Hydro-Exch-Frmt
+SMARS:SMARS-Supp-airways-stn
+SOD:SOD-ASOS-AWOS
+SOM:SOM-ASOS-AWOS
+SURF:SURF-Surf-Rad-NetSY-AE:SYAE-Synop-and-aero-merged
+SY-AU:SYAU-Synop-and-auto-merged
+SY-MT:SYMT-Synop-and-METAR-merged
+SY-SA:SYSA-Synop-and-airways-merged
+WBO:WBO
+WNO:WNO-WashNavObs
+99999:999999-Missing
+Report type codes for Source 382 hourly C-HPD precipitation
+4-DSI-3240
+H-derived-HPD-C-high-res
+Table 4(a): Source flag codes
+1-USAF-not-merged-w-NCEI-failed-element-cross-checks
+2-NCEI-sfc-hrly-not-merged-w-USAF-failed-element-cross-checks
+3-USAF-sfc-hrly-NCEI-sfc-hrly-merged
+4-USAF-sfc-hrly
+5-NCEI-sfc-hrly
+6-ASOS-AWOS-from-NCEI
+7-ASOS-AWOS-merged-w-USAF
+8-MAPSO-NCEI
+A-USAF-sfc-hrly-NCEI-hrly-precip-candidate-not-merged-w-NCEI-sfc-hrly-failed-element-cross-c
+hecks
+B-NCEI-sfc-hrly-NCEI-hrly-precip-candidate-not-merged-w-USAF-sfc-hrly-failed-element-cross-c
+hecks
+C-USAF-sfc-hrly-NCEI-sfc-hrly-NCEI-hrly-precip-merged
+D-USAF-sfc-hrly-NCEI-hrly-precip-merged
+E-NCEI-sfc-hrly-NCEI-hrly-precip-merged
+F-Form-OMR-1001-Wx-Bur-city-office-keyed
+G-SAO-pre-1949-keyed
+H-SAO-1965-1981-format-period-keyed
+I-CRN
+J-COOP
+K-Rad-net
+L-CDMP
+M-NREL
+N-NCAR-NCEI-coop-effort-var-ntl-datasets
+O-Summary-obs-created-by-NCEI-using-hrly-obs-that-may-not-share-same-data-source-flag
+9-Missing
+VIII. Present Weather Code DescriptorsTable 5(a-c): Present Weather Element and Measurement Codes
+Weather codes (AU / AW / MW) describe precipitation or obstructions to vision occurring at the
+time of observation. It is not uncommon for one type of element to be reported without another.
+In other words, it is possible to have an AU element without an AW element or MW element.
+Depending on equipment used at the location, some automated stations report AW codes either
+with or instead of AU codes. Manually augmented stations report MW codes either with or
+instead of AU and AW codes. Definitions of element and measurement codes:
+Table 5(a) – pres_wx_MW1[2][3] (sourced from manual reports)
+00-Cloud
+01-Clouds
+02-State
+03-Clouds
+FU:04-Visibility-reduced-by-smoke,
+-e.g.
+-veldt-or-forest-fires,
+-industrial-smoke-or-volcanic-ashes
+HZ:05-Haze
+DU:06-Widespread-dust-in-suspension-in-the-air,
+-not-raised-by-wind-at-or-near-the-station-at-th
+e-time-of-observation
+DU:07-Dust-or-sand-raised-by-wind-at-or-near-the-station-at-the-time-of-observation-but-no-well
+-developed-dust-whirl(s)-or-sand-whirl(s),
+-and-no-duststorm-or-sandstorm-seen-or,
+-in-the-ca
+se-of-ships,
+-blowing-spray-at-the-station
+DU:08-Well-developed-dust-whirl(s)-or-sand-whirl(s)-seen-at-or-near-the-station-during-the-prec
+eding-hour-or-at-the-time-of-observation,
+-but-no-duststorm-or-sandstorm
+DU:09-Duststorm-or-sandstorm-within-sight-at-the-time-of-observation,
+-or-at-the-station-during-t
+he-preceding-hour
+FG:11-Patches-of-shallow-fog-or-ice-fog-at-the-station,
+-whether-on-land-or-sea,
+-not-deeper-tha
+n-about-2-meters-on-land-or-10-meters-at-sea
+FG:12-More-or-less-continuous-shallow-fog-or-ice-fog-at-the-station,
+-whether-on-land-or-sea,
+-n
+ot-deeper-than-about-2-meters-on-land-or-10-meters-at-sea
+13-Lightning-visible,
+-no-thunder-heard
+14-Precipitation-within-sight,
+-not-reaching-the-ground-or-the-surface-of-the-sea
+15-Precipitation-within-sight,
+-reaching-the-ground-or-the-surface-of-the-sea,
+-but-distant,
+-i.e.,
+-est
+imated-to-be-more-than-5-km-from-the-station
+16-Precipitation-within-sight,
+-reaching-the-ground-or-the-surface-of-the-sea,
+-near-to,
+-but-not-at-t
+he-station
+TS:17-Thunderstorm,
+-but-no-precipitation-at-the-time-of-observation
+SQ:18-Squalls-at-or-within-sight-of-the-station-during-the-preceding-hour-or-at-the-time-of-obser
+vation
+FC:19-Funnel-cloud(s)-(Tornado-cloud-or-waterspout)-at-or-within-sight-of-the-station-during-the-prece
+ding-hour-or-at-the-time-of-observation
+20-Drizzle-(not-freezing)-or-snow-grains-not-falling-as-shower(s)-(during-the-preceding-hour-but
+-not-at-the-time-of-observation)
+21-Rain-(not-freezing)-not-falling-as-shower(s)-(during-the-preceding-hour-but-not-at-the-time-of
+-observation))22-Snow-not-falling-as-shower(s)-(during-the-preceding-hour-but-not-at-the-time-of-observation)
+23-Rain-and-snow-or-ice-pellets-not-falling-as-shower(s)-(during-the-preceding-hour-but-not-at-t
+he-time-of-observation)
+24-Freezing-drizzle-or-freezing-rain-not-falling-as-shower(s)-(during-the-preceding-hour-but-not-
+at-the-time-of-observation)
+25-Shower(s)-of-rain-(during-the-preceding-hour-but-not-at-the-time-of-observation)
+26-Shower(s)-of-snow-or-of-rain-and-snow-(during-the-preceding-hour-but-not-at-the-time-of-ob
+servation)
+27-Shower(s)-of-hail-(Hail,
+-small-hail,
+-snow-pellets),
+-or-rain-and-hail-(during-the-preceding-hour
+-but-not-at-the-time-of-observation)
+28-Fog-or-ice-fog-(during-the-preceding-hour-but-not-at-the-time-of-observation)
+29-Thunderstorm-(with-or-without-precipitation)-(during-the-preceding-hour-but-not-at-the-time-o
+f-observation)
+DU:30-Slight-or-moderate-duststorm-or-sandstorm-has-decreased-during-the-preceding-hour
+DU:31-Slight-or-moderate-duststorm-or-sandstorm-no-appreciable-change-during-the-preceding
+-hour
+DU:32-Slight-or-moderate-duststorm-or-sandstorm-has-begun-or-has-increased-during-the-prec
+eding-hour
+DU:33-Severe-duststorm-or-sandstorm-has-decreased-during-the-preceding-hour
+DU:34-Severe-duststorm-or-sandstorm-no-appreciable-change-during-the-preceding-hour
+DU:35-Severe-duststorm-or-sandstorm-has-begun-or-has-increased-during-the-preceding-hour
+DRSN:36-Slight-or-moderate-drifting-snow-generally-low-(below-eye-level)
+DRSN:37-Heavy-drifting-snow-generally-low-(below-eye-level)
+BLSN:38-Slight-or-moderate-blowing-snow-generally-high-(above-eye-level)
+BLSN:39-Heavy-blowing-snow-generally-high-(above-eye-level)
+FG:40-Fog-or-ice-fog-at-a-distance-at-the-time-of-observation,
+-but-not-at-the-station-during-the-
+preceding-hour,
+-the-fog-or-ice-fog-extending-to-a-level-above-that-of-the-observer
+FG:41-Fog-or-ice-fog-in-patches
+FG:42-Fog-or-ice-fog,
+-sky-visible,
+-has-become-thinner-during-the-preceding-hour
+FG:43-Fog-or-ice-fog,
+-sky-invisible,
+-has-become-thinner-during-the-preceding-hour
+FG:44-Fog-or-ice-fog,
+-sky-visible,
+-no-appreciable-change-during-the-preceding-hour
+FG:45-Fog-or-ice-fog,
+-sky-invisible,
+-no-appreciable-change-during-the-preceding-hour
+FG:46-Fog-or-ice-fog,
+-sky-visible,
+-has-begun-or-has-become-thicker-during-the-preceding-hour
+FG:47-Fog-or-ice-fog,
+-sky-invisible,
+-has-begun-or-has-become-thicker-during-the-preceding-ho
+ur
+FG:48-Fog,
+-depositing-rime,
+-sky-visible
+FG:49-Fog,
+-depositing-rime,
+-sky-invisible
+DZ:50-Drizzle,
+-not-freezing,
+-intermittent,
+-slight-at-time-of-observation
+DZ:51-Drizzle,
+-not-freezing,
+-continuous,
+-slight-at-time-of-observation
+DZ:52-Drizzle,
+-not-freezing,
+-intermittent,
+-moderate-at-time-of-observation
+DZ:53-Drizzle,
+-not-freezing,
+-continuous,
+-moderate-at-time-of-observation
+DZ:54-Drizzle,
+-not-freezing,
+-intermittent,
+-heavy-(dense)-at-time-of-observation
+DZ:55-Drizzle,
+-not-freezing,
+-continuous,
+-heavy-(dense)-at-time-of-observation
+FZDZ:56-Drizzle,
+-freezing,
+-slightFZDZ:57-Drizzle,
+-freezing,
+-moderate-or-heavy-(dense)
+DZ:58-Drizzle-and-rain,
+-slight
+DZ:59-Drizzle-and-rain,
+-moderate-or-heavy
+RA:60-Rain,
+-not-freezing,
+-intermittent,
+-slight-at-time-of-observation
+RA:61-Rain,
+-not-freezing,
+-continuous,
+-slight-at-time-of-observation
+RA:62-Rain,
+-not-freezing,
+-intermittent,
+-moderate-at-time-of-observation
+RA:63-Rain,
+-not-freezing,
+-continuous,
+-moderate-at-time-of-observation
+RA:64-Rain,
+-not-freezing,
+-intermittent,
+-heavy-at-time-of-observation
+RA:65-Rain,
+-not-freezing,
+-continuous,
+-heavy-at-time-of-observation
+FZRA:66-Rain,
+-freezing,
+-slight
+FZRA:67-Rain,
+-freezing,
+-moderate-or-heavy
+RA:68-Rain-or-drizzle-and-snow,
+-slight
+RA:69-Rain-or-drizzle-and-snow,
+-moderate-or-heavy
+SN:70-Intermittent-fall-of-snowflakes,
+-slight-at-time-of-observation
+SN:71-Continuous-fall-of-snowflakes,
+-slight-at-time-of-observation
+SN:72-Intermittent-fall-of-snowflakes,
+-moderate-at-time-of-observation
+SN:73-Continuous-fall-of-snowflakes,
+-moderate-at-time-of-observation
+SN:74-Intermittent-fall-of-snowflakes,
+-heavy-at-time-of-observation
+SN:75-Continuous-fall-of-snowflakes,
+-heavy-at-time-of-observation
+76-Diamond-dust-(with-or-without-fog)
+SG:77-Snow-grains-(with-or-without-fog)
+SN:78-Isolated-star-like-snow-crystals-(with-or-without-fog)
+PL:79-Ice-pellets
+SHRA:80-Rain-shower(s),
+-slight
+SHRA:81-Rain-shower(s),
+-moderate-or-heavy
+SHRA:82-Rain-shower(s),
+-violent
+SHRASN:83-Shower(s)-of-rain-and-snow-mixed,
+-slight
+SHRASN:84-Shower(s)-of-rain-and-snow-mixed,
+-moderate-or-heavy
+SHSN:85-Show-shower(s),
+-slight
+SHSN:86-Snow-shower(s),
+-moderate-or-heavy
+SH:87-Shower(s)-of-snow-pellets-or-small-hail,
+-with-or-without-rain-or-rain-and-snow-mixed,
+-sli
+ght
+SH:88-Shower(s)-of-snow-pellets-or-small-hail,
+-with-or-without-rain-or-rain-and-snow-mixed,
+-mo
+derate-or-heavy
+SH:89-Shower(s)-of-hail-(hail,
+-small-hail,
+-snow-pellets),
+-with-or-without-rain-or-rain-and-snow-m
+ixed,
+-not-associated-with-thunder,
+-slight
+SH:90-Shower(s)-of-hail-(hail,
+-small-hail,
+-snow-pellets),
+-with-or-without-rain-or-rain-and-snow-m
+ixed,
+-not-associated-with-thunder,
+-moderate-or-heavy
+RA:91-Slight-rain-at-time-of-observation,
+-thunderstorm-during-the-preceding-hour-but-not-at-tim
+e-of-observation
+RA:92-Moderate-or-heavy-rain-at-time-of-observation,
+-thunderstorm-during-the-preceding-hour-
+but-not-at-time-of-observation
+93-Slight-snow,
+-or-rain-and-snow-mixed-or-hail-(Hail,
+-small-hail,
+-snow-pellets),
+-at-time-of-obser
+vation,
+-thunderstorm-during-the-preceding-hour-but-not-at-time-of-observation94-Moderate-or-heavy-snow,
+-or-rain-and-snow-mixed-or-hail(Hail,
+-small-hail,
+-snow-pellets)-at-ti
+me-of-observation,
+-thunderstorm-during-the-preceding-hour-but-not-at-time-of-observation
+TS:95-Thunderstorm,
+-slight-or-moderate,
+-without-hail-(Hail,
+-small-hail,
+-snow-pellets),
+-but-with-r
+ain-and/or-snow-at-time-of-observation,
+-thunderstorm-at-time-of-observation
+TS:96-Thunderstorm,
+-slight-or-moderate,
+-with-hail-(hail,
+-small-hail,
+-snow-pellets)-at-time-of-obs
+ervation,
+-thunderstorm-at-time-of-observation
+TS:97-Thunderstorm,
+-heavy,
+-without-hail-(Hail,
+-small-hail,
+-snow-pellets),
+-but-with-rain-and/or-sn
+ow-at-time-of-observation,
+-thunderstorm-at-time-of-observation
+TS:98-Thunderstorm-combined-with-duststorm-or-sandstorm-at-time-of-observation,
+-thundersto
+rm-at-time-of-observation
+TS:99-Thunderstorm,
+-heavy,
+-with-hail-(Hail,
+-small-hail,
+-snow-pellets)-at-time-of-observation,
+-thu
+nderstorm-at-time-of-observation
+Table 5(b) pres_wx_AW1[2][3] (sourced from automated sensors)
+Note: Codes 20-26 are used to report precipitation, fog, thunderstorm at the station during the
+preceding hour, but not at the time of observation
+00-No-significant-weather-observed
+01-Clouds-generally-dissolving-or-becoming-less-developed
+02-State-of-sky-on-the-whole-unchanged-during-the-past-hr
+03-Clouds-generally-forming-or-developing-during-the-past-hr
+HZ:04-Haze,
+-smoke,
+-or-dust-in-suspension-in-the-air,
+-visibility-equal-to-or-greater-than-1km
+FU:05
+DU:07-Dust-or-sand-raised-by-wind-at-or-near-the-station-at-the-time-of-observation,
+-but-no-wel
+l-developed-dust-whirl(s)-or-sand-whirl(s),
+-and-no-duststorm-or-sandstorm-seen-or,
+-in-the-case-
+of-ships,
+-blowing-spra
+y-at-the-station
+BR:10-Mist
+11-Diamond-dust
+12-Distant-lightning
+SQ:18-Squalls
+20-Fog-(during-preceding-hour-but-not-at-time-of-observation)
+21-Precipitation-(during-preceding-hour-but-not-at-time-of-observation)
+22-Drizzle-(not-freezing)-or-snow-grains-(during-preceding-hour-but-not-at-time-of-observation)
+23-Rain-(not-freezing)-(during-preceding-hour-but-not-at-time-of-observation)
+24-Snow-(during-preceding-hour-but-not-at-time-of-observation)
+25-Freezing-drizzle-or-freezing-rain-(during-preceding-hour-but-not-at-time-of-observation)
+26-Thunderstorm-(with-or-without-precipitation)-(during-preceding-hour-but-not-at-time-of-obser
+vation)(during-preceding-hour-but-not-at-time-of-observation)
+27-Blowing-or-drifting-snow-or-sand
+28-Blowing-or-drifting-snow-or-sand,
+-visibility-equal-to-or-greater-than-1-km
+29-Blowing-or-drifting-snow-or-sand,
+-visibility-less-than-1-km
+FG:30-FogFG:31-Fog-or-ice-fog-in-patches
+FG:32-Fog-or-ice-fog,
+-has-become-thinner-during-the-past-hour
+FG:33-Fog-or-ice-fog,
+-no-appreciable-change-during-the-past-hour
+FG:34-Fog-or-ice-fog,
+-has-begun-or-become-thicker-during-the-past-hour
+FG:35-Fog,
+-depositing-rime
+40-Precipitation
+41-Precipitation,
+-slight-or-moderate
+42-Precipitation,
+-heavy
+43-Liquid-precipitation,
+-slight-or-moderate
+44-Liquid-precipitation,
+-heavy
+45-Solid-precipitation,
+-slight-or-moderate
+46-Solid-precipitation,
+-heavy
+47-Freezing-precipitation,
+-slight-or-moderate
+48-Freezing-precipitation,
+-heavy
+DZ:50-Drizzle
+DZ:51-Drizzle,
+-not-freezing,
+-slight
+DZ:52-Drizzle,
+-not-freezing,
+-moderate
+DZ:53-Drizzle,
+-not-freezing,
+-heavy
+FZDZ:54-Drizzle,
+-freezing,
+-slight
+FZDZ:55-Drizzle,
+-freezing,
+-moderate
+FZDZ:56-Drizzle,
+-freezing,
+-heavy
+DZ:57-Drizzle-and-rain,
+-slight
+DZ:58-Drizzle-and-rain,
+-moderate-or-heavy
+RA:60-Rain
+RA:61-Rain,
+-not-freezing,
+-slight
+RA:62-Rain,
+-not-freezing,
+-moderate
+RA:63-Rain,
+-not-freezing,
+-heavy
+FZRA:64-Rain,
+-freezing,
+-slight
+FZRA:65-Rain,
+-freezing,
+-moderate
+FZRA:66-Rain,
+-freezing,
+-heavy
+RA:67-Rain-or-drizzle-and-snow,
+-slight
+RA:68-Rain-or-drizzle-and-snow,
+-moderate-or-heavy
+SN:70-Snow
+SN:71-Snow,
+-slight
+SN:72-Snow,
+-moderate
+SN:73-Snow,
+-heavy
+PL:74-Ice-pellets,
+-slight
+PL:75-Ice-pellets,
+-moderate
+PL:76-Ice-pellets,
+-heavy
+SG:77-Snow-grains
+IC:78-Ice-crystals
+80-Showers-or-intermittent-precipitation
+SHRA:81-Rain-showers-or-intermittent-rain,
+-slight
+SHRA:82-Rain-showers-or-intermittent-rain,
+-moderateSHRA:83-Rain-showers-or-intermittent-rain,
+-heavy
+SHRA:84-Rain-showers-or-intermittent-rain,
+-violent
+SHSN:85-Snow-showers-or-intermittent-snow,
+-slight
+SHSN:86-Snow-showers-or-intermittent-snow,
+-moderate
+SHSN:87-Snow-showers-or-intermittent-snow,
+-heavy
+89-Hail
+TS:90-Thunderstorm
+TS:91-Thunderstorm,
+-slight-or-moderate,
+-with-no-precipitation
+TS:92-Thunderstorm,
+-slight-or-moderate,
+-with-rain-showers-and/or-snow-showers
+TS-HAIL:93-Thunderstorm,
+-slight-or-moderate,
+-with-hail
+TS:94-Thunderstorm,
+-heavy,
+-with-no-precipitation
+TS:95-Thunderstorm,
+-heavy,
+-with-rain-showers-and/or-snow
+TS+HAIL:96-Thunderstorm,
+-heavy,
+-with-hail
++FC:99-Tornado
+Table 5(c) pres_wx_AU1[2][3] (sourced from automated ASOS/AWOS sensors)
+Codes can be a sequential order/combination of several sub-codes for weather intensity,
+descriptor, precipitation, obscuration and other:
+Intensity
+1:-
+3:+
+(light)
+(heavy)
+4:VC (vicinity-(apparent-but-not-at-point-of-observation))
+Descriptor
+MI = shallow
+PR = partial
+BC = patches
+DR = low-drifting
+BL = blowing
+SH = showers
+TS = thunderstorm
+FZ = freezing
+Precipitation
+DZ:01-Drizzle
+RA:02-Rain
+SN:03-Snow
+SG:04-Snow-Grains
+IC:05-Ice-Crystals
+PL:06-Ice-Pellets
+GR:07-Hail
+GS:08-Small-Hail-and/or-Snow-PelletsUP:09-Unknown-Precipitation
+Obscuration
+BR:1-Mist
+FG:2-Fog
+FU:3-Smoke
+VA:4-Volcanic-Ash
+DU:5-Widespread-Dust
+SA:6-Sand
+HZ:7-Haze
+PY:8-Spray
+Other weather:
+PO:1-Well-developed-dust/sand-whirls
+SQ:2-Squalls
+FC:3-Funnel-Cloud,
+-Waterspout-or-Tornado
+SS:4-Sandstorm
+DS:5-Duststorm
+IX.
+“Hourly” Precipitation Measurements
+For the precipitation totals coming from METARs (Meteorological Aerodrome Reports) from
+AWOS/ASOS reports, there are usually routine FM-15 messages that are transmitted at a
+standard time (at the end of the hour: at or after minute 45) for a particular station. In many
+cases, the report is hourly and in general is no longer than hourly. For the standard hourly
+reports, there can be METAR SPECI (FM-16) reports transmitted at other (non-standard) times,
+when conditions change that can affect aviation during the hour between the routine messages.
+Some airport sites routinely report more frequently than once per hour (e.g, at 20 minute
+intervals), even when conditions are not changing. When multiple observations are transmitted
+within the hour, the precipitation totals represent a running total for that hour. To extract the total
+precipitation for a particular hour, the last report should be used.
+An example of routine (FM-15) and interim/special reports (FM-16) is provided below.
+METAR KBYY 251255Z 01007KT 7SM -RA BKN020 OVC050 22/21 A2976 RMK AO2 T02320216;
+METAR KBYY 251315Z 30008G28KT 3/4SM -RA OVC009 21/20 A2984 RMK AO2 P0065 T02230214;
+METAR KBYY 251335Z 35013G18KT 1/2SM +RA BKN005 OVC008 19/19 A2986 RMK AO2 P0170
+T01980197;
+METAR KBYY 251355Z 01008KT 4SM RA SCT007 BKN048 OVC060 18/18 A2984 RMK AO2 P0186
+T01920192In this case there are two METAR SPECIs after the for hour 13 after the 12:55 UTC routine
+message. Rainfall amounts are noted by the P groups highlighted above. Precipitation totals
+are:
+P0065 in the 13:15 report means 0.65 inches of rain (16.5 mm) since the last routine METAR
+(likely since 12:55 UTC)
+P0170 in the 13:35 report means 1.70 inches of rain (43.2 mm) since the last routine METAR
+P0186 in the 13:55 report means 1.86 inches of rain (47.2 mm) since the last routine METAR
+For the intermediate reports:
+P0170 at 13:35 UTC indicates that an additional 1.05 inches/26.7 mm (1.70”
+between 13:15 UTC and 13:35 UTC.
+P0186 at 13:55 UTC indicates that an additional 0.16 inches/4.1 mm (1.86”
+between 13:35 UTC and 13:55 UTC.
+- 0.65”) of rain fell
+- 1.70”) of rain fell
+The most straightforward way to extract the hourly total for stations with METAR reports like this
+one is to take the last report for the hour. The standard reporting time varies somewhat from
+station to station, but is obvious as the most common minute closest to the end of the hour.
+There are multiple sources that contain METAR observations. For the USA these include 343,
+335, 220, 221, 223. Prior to 1996, SA (Surface Airways) and SAO reports were used prior to
+METAR adoption in North America and globally before around 1981. These reports have similar
+rules to METAR. The precipitation
+_
+Report
+_
+Type indicates what report the observation came
+from.
+Information on ASOS/AWOS can be found here:
+https://www.ncei.noaa.gov/products/land-based-station/automated-surface-weather-observing-s
+ystems.
+For more information on the meteorological report types refer to the Federal Meteorological
+Handbook (FMH) No. 1, Surface Weather Observations & Reports.
+https://www.icams-portal.gov/resources/ofcm/fmh/FMH1/fmh1
+_
+2019.pdf
+X. Columns and Headers in PSV Files
+Files in the /by-station and /by-year access directories have a slightly different format. The
+station period-of-record (POR) files in the /by-station directory have 238 columns and include
+individual columns for Year, Month, Day, Hour, and Minute. The yearly station files in the
+/by-year directory have a total column count of 234 with a single column “DATE” in ISO format
+(example: 2024-01-01T02:00:00).Column
+Number
+Header Name
+(by-station)
+Column
+Number
+Header Name
+(by-year)
+1 Station
+ID 1 STATION
+_
+2 Station
+name 2 Station
+name
+_
+_
+3 Year 3 DATE
+4 Month 4 LATITUDE
+5 Day 5 LONGITUDE
+6 Hour
+7 Minute
+8 Latitude
+9 Longitude
+10 Elevation 6
+11 temperature 7
+12 temperature
+Measurement
+_
+_
+Code 8
+13 temperature
+_
+Quality_
+Code 9
+14 temperature
+_
+Report
+_
+Type 10
+15 temperature
+Source
+Code 11
+_
+_
+16 temperature
+Source
+Station
+_
+_
+_
+ID 12
+17 dew
+_point
+_
+temperature 13
+18 dew
+_point
+_
+temperature
+Measurement
+_
+_
+Code 14
+19 dew
+_point
+_
+temperature
+_
+Quality_
+Code 15
+20 dew
+_point
+_
+temperature
+_
+Report
+_
+Type 16
+21 dew
+_point
+_
+temperature
+Source
+_
+_
+Code 17
+22 dew
+_point
+_
+temperature
+Source
+Station
+_
+_
+_
+ID 18
+23 station
+level
+_
+_pressure 19Column
+Number
+Header Name
+(by-station)
+Column
+Number
+Header Name
+(by-year)
+24 station
+level
+_
+_pressure
+Measurement
+_
+_
+Code 20
+25 station
+level
+_
+_pressure
+_
+Quality_
+Code 21
+26 station
+level
+_
+_pressure
+_
+Report
+_
+Type 22
+27 station
+level
+_
+_pressure
+Source
+_
+_
+Code 23
+28 station
+level
+_
+_pressure
+Source
+Station
+_
+_
+_
+ID 24
+29 sea
+level
+_
+_pressure 25
+30 sea
+level
+_
+_pressure
+Measurement
+_
+_
+Code 26
+31 sea
+level
+_
+_pressure
+_
+Quality_
+Code 27
+32 sea
+level
+_
+_pressure
+_
+Report
+_
+Type 28
+33 sea
+level
+_
+_pressure
+Source
+_
+_
+Code 29
+34 sea
+level
+_
+_pressure
+Source
+Station
+_
+_
+_
+ID 30
+35 wind
+direction 31
+_
+36 wind
+direction
+Measurement
+Code 32
+_
+_
+_
+37 wind
+direction
+_
+_
+Quality_
+Code 33
+38 wind
+direction
+_
+_
+Report
+_
+Type 34
+39 wind
+direction
+Source
+Code 35
+_
+_
+_
+40 wind
+direction
+Source
+Station
+ID 36
+_
+_
+_
+_
+41 wind
+_
+speed 37
+42 wind
+_
+speed
+Measurement
+_
+_
+Code 38
+43 wind
+_
+speed
+_
+Quality_
+Code 39
+44 wind
+_
+speed
+_
+Report
+_
+Type 40
+45 wind
+_
+speed
+Source
+Code 41
+_
+_
+46 wind
+_
+speed
+Source
+Station
+_
+_
+_
+ID 42Column
+Number
+Header Name
+(by-station)
+Column
+Number
+Header Name
+(by-year)
+47 wind
+_gust 43
+48 wind
+_gust
+Measurement
+Code 44
+_
+_
+49 wind
+_gust
+_
+Quality_
+Code 45
+50 wind
+_gust
+_
+Report
+_
+Type 46
+51 wind
+_gust
+Source
+Code 47
+_
+_
+52 wind
+_gust
+Source
+Station
+_
+_
+_
+ID 48
+53 precipitation 49
+54 precipitation
+Measurement
+_
+_
+Code 50
+55 precipitation
+_
+Quality_
+Code 51
+56 precipitation
+_
+Report
+_
+Type 52
+57 precipitation
+Source
+Code 53
+_
+_
+58 precipitation
+Source
+Station
+_
+_
+_
+ID 54
+59 relative
+_
+humidity 55
+60 relative
+_
+humidity_
+Measurement
+_
+Code 56
+61 relative
+_
+humidity_
+Quality_
+Code 57
+62 relative
+_
+humidity_
+Report
+_
+Type 58
+63 relative
+_
+humidity_
+Source
+Code 59
+_
+64 relative
+_
+humidity_
+Source
+Station
+_
+_
+ID 60
+65 wet
+bulb
+_
+_
+temperature 61
+66 wet
+bulb
+_
+_
+temperature
+Measurement
+_
+_
+Code 62
+67 wet
+bulb
+_
+_
+temperature
+_
+Quality_
+Code 63
+68 wet
+bulb
+_
+_
+temperature
+_
+Report
+_
+Type 64
+69 wet
+bulb
+_
+_
+temperature
+Source
+_
+_
+Code 65Column
+Number
+Header Name
+(by-station)
+Column
+Number
+Header Name
+(by-year)
+70 wet
+bulb
+_
+_
+temperature
+Source
+Station
+_
+_
+_
+ID 66
+71 pres
+wx
+MW1 67
+_
+_
+72 pres
+wx
+MW1
+_
+_
+_
+Measurement
+Code 68
+_
+73 pres
+wx
+MW1
+_
+_
+_
+Quality_
+Code 69
+74 pres
+wx
+MW1
+_
+_
+_
+Report
+_
+Type 70
+75 pres
+wx
+MW1
+_
+_
+Source
+Code 71
+_
+_
+76 pres
+wx
+MW1
+_
+_
+Source
+Station
+ID 72
+_
+_
+_
+77 pres
+wx
+MW2 73
+_
+_
+78 pres
+wx
+MW2
+Measurement
+Code 74
+_
+_
+_
+_
+79 pres
+wx
+MW2
+_
+_
+_
+Quality_
+Code 75
+80 pres
+wx
+MW2
+_
+_
+_
+Report
+_
+Type 76
+81 pres
+wx
+MW2
+Source
+Code 77
+_
+_
+_
+_
+82 pres
+wx
+MW2
+Source
+Station
+ID 78
+_
+_
+_
+_
+_
+83 pres
+wx
+MW3 79
+_
+_
+84 pres
+wx
+MW3
+Measurement
+Code 80
+_
+_
+_
+_
+85 pres
+wx
+MW3
+_
+_
+_
+Quality_
+Code 81
+86 pres
+wx
+MW3
+_
+_
+_
+Report
+_
+Type 82
+87 pres
+wx
+MW3
+Source
+Code 83
+_
+_
+_
+_
+88 pres
+wx
+MW3
+Source
+Station
+_
+_
+_
+_
+_
+ID 84
+89 pres
+wx
+AU1 85
+_
+_
+90 pres
+wx
+AU1
+_
+_
+_
+Measurement
+Code 86
+_
+91 pres
+wx
+AU1
+_
+_
+_
+Quality_
+Code 87
+92 pres
+wx
+AU1
+_
+_
+_
+Report
+_
+Type 88Column
+Number
+Header Name
+(by-station)
+Column
+Number
+Header Name
+(by-year)
+93 pres
+wx
+AU1
+_
+_
+Source
+Code 89
+_
+_
+94 pres
+wx
+AU1
+_
+_
+_
+Source
+Station
+_
+_
+ID 90
+95 pres
+wx
+AU2 91
+_
+_
+96 pres
+wx
+AU2
+Measurement
+Code 92
+_
+_
+_
+_
+97 pres
+wx
+AU2
+_
+_
+_
+Quality_
+Code 93
+98 pres
+wx
+AU2
+_
+_
+_
+Report
+_
+Type 94
+99 pres
+wx
+AU2
+Source
+Code 95
+_
+_
+_
+_
+100 pres
+wx
+AU2
+Source
+Station
+ID 96
+_
+_
+_
+_
+_
+101 pres
+wx
+AU3 97
+_
+_
+102 pres
+wx
+AU3
+Measurement
+Code 98
+_
+_
+_
+_
+103 pres
+wx
+AU3
+_
+_
+_
+Quality_
+Code 99
+104 pres
+wx
+AU3
+_
+_
+_
+Report
+_
+Type 100
+105 pres
+wx
+AU3
+Source
+Code 101
+_
+_
+_
+_
+106 pres
+wx
+AU3
+Source
+Station
+ID 102
+_
+_
+_
+_
+_
+107 pres
+wx
+AW1 103
+_
+_
+108 pres
+wx
+AW1
+_
+_
+_
+Measurement
+Code 104
+_
+109 pres
+wx
+AW1
+_
+_
+_
+Quality_
+Code 105
+110 pres
+wx
+AW1
+_
+_
+_
+Report
+_
+Type 106
+111 pres
+wx
+AW1
+_
+_
+Source
+Code 107
+_
+_
+112 pres
+wx
+AW1
+_
+_
+_
+Source
+Station
+_
+_
+ID 108
+113 pres
+wx
+AW2 109
+_
+_
+114 pres
+wx
+AW2
+Measurement
+Code 110
+_
+_
+_
+_
+115 pres
+wx
+AW2
+_
+_
+_
+Quality_
+Code 111Column
+Number
+Header Name
+(by-station)
+Column
+Number
+Header Name
+(by-year)
+116 pres
+wx
+AW2
+_
+_
+_
+Report
+_
+Type 112
+117 pres
+wx
+AW2
+Source
+Code 113
+_
+_
+_
+_
+118 pres
+wx
+AW2
+Source
+Station
+ID 114
+_
+_
+_
+_
+_
+119 pres
+wx
+AW3 115
+_
+_
+120 pres
+wx
+AW3
+Measurement
+Code 116
+_
+_
+_
+_
+121 pres
+wx
+AW3
+_
+_
+_
+Quality_
+Code 117
+122 pres
+wx
+AW3
+_
+_
+_
+Report
+_
+Type 118
+123 pres
+wx
+AW3
+Source
+Code 119
+_
+_
+_
+_
+124 pres
+wx
+AW3
+Source
+Station
+ID 120
+_
+_
+_
+_
+_
+125 snow
+_
+depth 121
+126 snow
+_
+depth
+Measurement
+Code 122
+_
+_
+127 snow
+_
+depth
+_
+Quality_
+Code 123
+128 snow
+_
+depth
+_
+Report
+_
+Type 124
+129 snow
+_
+depth
+Source
+Code 125
+_
+_
+130 snow
+_
+depth
+Source
+Station
+_
+_
+_
+ID 126
+131 visibility 127
+132 visibility_
+Measurement
+Code 128
+_
+133 visibility_
+Quality_
+Code 129
+134 visibility_
+Report
+_
+Type 130
+135 visibility_
+Source
+Code 131
+_
+136 visibility_
+Source
+Station
+ID 132
+_
+_
+137 altimeter 133
+138 altimeter
+Measurement
+Code 134_
+_Column
+Number
+Header Name
+(by-station)
+Column
+Number
+Header Name
+(by-year)
+139 altimeter
+_
+Quality_
+Code 135
+140 altimeter
+_
+Report
+_
+Type 136
+141 altimeter
+Source
+Code 137
+_
+_
+142 altimeter
+Source
+Station
+_
+_
+_
+ID 138
+143 pressure
+3hr
+_
+_
+change 139
+144 pressure
+3hr
+_
+_
+change
+Measurement
+_
+_
+Code 140
+145 pressure
+3hr
+_
+_
+change
+_
+Quality_
+Code 141
+146 pressure
+3hr
+_
+_
+change
+_
+Report
+_
+Type 142
+147 pressure
+3hr
+_
+_
+change
+Source
+_
+_
+Code 143
+148 pressure
+3hr
+_
+_
+change
+Source
+Station
+_
+_
+_
+ID 144
+149 sky_
+cover
+_
+1 145
+150 sky_
+cover
+_
+1
+Measurement
+Code 146
+_
+_
+151 sky_
+cover
+_
+1
+_
+Quality_
+Code 147
+152 sky_
+cover
+_
+1
+_
+Report
+_
+Type 148
+153 sky_
+cover
+_
+1
+Source
+Code 149
+_
+_
+154 sky_
+cover
+_
+1
+Source
+Station
+ID 150
+_
+_
+_
+155 sky_
+cover
+baseht
+_
+_
+1 151
+156 sky_
+cover
+baseht
+_
+_
+1
+Measurement
+Code 152
+_
+_
+157 sky_
+cover
+baseht
+_
+_
+1
+_
+Quality_
+Code 153
+158 sky_
+cover
+baseht
+_
+_
+1
+_
+Report
+_
+Type 154
+159 sky_
+cover
+baseht
+_
+_
+1
+Source
+Code 155
+_
+_
+160 sky_
+cover
+baseht
+_
+_
+1
+Source
+Station
+ID 156
+_
+_
+_
+161 sky_
+cover
+2 157_Column
+Number
+Header Name
+(by-station)
+Column
+Number
+Header Name
+(by-year)
+162 sky_
+cover
+2
+Measurement
+Code 158
+_
+_
+_
+163 sky_
+cover
+2
+_
+_
+Quality_
+Code 159
+164 sky_
+cover
+2
+_
+_
+Report
+_
+Type 160
+165 sky_
+cover
+2
+Source
+Code 161
+_
+_
+_
+166 sky_
+cover
+2
+Source
+Station
+_
+_
+_
+_
+ID 162
+167 sky_
+cover
+baseht
+2 163
+_
+_
+168 sky_
+cover
+baseht
+2
+Measurement
+_
+_
+_
+_
+Code 164
+169 sky_
+cover
+baseht
+2
+_
+_
+_
+Quality_
+Code 165
+170 sky_
+cover
+baseht
+2
+_
+_
+_
+Report
+_
+Type 166
+171 sky_
+cover
+baseht
+2
+Source
+_
+_
+_
+_
+Code 167
+172 sky_
+cover
+baseht
+2
+Source
+Station
+_
+_
+_
+_
+_
+ID 168
+173 sky_
+cover
+3 169
+_
+174 sky_
+cover
+3
+Measurement
+Code 170
+_
+_
+_
+175 sky_
+cover
+3
+_
+_
+Quality_
+Code 171
+176 sky_
+cover
+3
+_
+_
+Report
+_
+Type 172
+177 sky_
+cover
+3
+Source
+Code 173
+_
+_
+_
+178 sky_
+cover
+3
+Source
+Station
+_
+_
+_
+_
+ID 174
+179 sky_
+cover
+baseht
+3 175
+_
+_
+180 sky_
+cover
+baseht
+3
+Measurement
+_
+_
+_
+_
+Code 176
+181 sky_
+cover
+baseht
+3
+_
+_
+_
+Quality_
+Code 177
+182 sky_
+cover
+baseht
+3
+_
+_
+_
+Report
+_
+Type 178
+183 sky_
+cover
+baseht
+3
+Source
+_
+_
+_
+_
+Code 179
+184 sky_
+cover
+baseht
+3
+Source
+Station
+_
+_
+_
+_
+_
+ID 180Column
+Number
+Header Name
+(by-station)
+Column
+Number
+Header Name
+(by-year)
+185 precipitation
+3
+hour 181
+_
+_
+186 precipitation
+3
+hour
+Measurement
+_
+_
+_
+_
+Code 182
+187 precipitation
+3
+hour
+_
+_
+_
+Quality_
+Code 183
+188 precipitation
+3
+hour
+_
+_
+_
+Report
+_
+Type 184
+189 precipitation
+3
+hour
+Source
+_
+_
+_
+_
+Code 185
+190 precipitation
+3
+hour
+Source
+Station
+_
+_
+_
+_
+_
+ID 186
+191 precipitation
+6
+hour 187
+_
+_
+192 precipitation
+6
+hour
+Measurement
+_
+_
+_
+_
+Code 188
+193 precipitation
+6
+hour
+_
+_
+_
+Quality_
+Code 189
+194 precipitation
+6
+hour
+_
+_
+_
+Report
+_
+Type 190
+195 precipitation
+6
+hour
+Source
+_
+_
+_
+_
+Code 191
+196 precipitation
+6
+hour
+Source
+Station
+_
+_
+_
+_
+_
+ID 192
+197 precipitation
+9
+hour 193
+_
+_
+198 precipitation
+9
+hour
+Measurement
+_
+_
+_
+_
+Code 194
+199 precipitation
+9
+hour
+_
+_
+_
+Quality_
+Code 195
+200 precipitation
+9
+hour
+_
+_
+_
+Report
+_
+Type 196
+201 precipitation
+9
+hour
+Source
+_
+_
+_
+_
+Code 197
+202 precipitation
+9
+hour
+Source
+Station
+_
+_
+_
+_
+_
+ID 198
+203 precipitation
+_
+12
+hour 199
+_
+204 precipitation
+_
+12
+hour
+Measurement
+Code 200
+_
+_
+_
+205 precipitation
+_
+12
+hour
+_
+_
+Quality_
+Code 201
+206 precipitation
+_
+12
+hour
+_
+_
+Report
+_
+Type 202
+207 precipitation
+_
+12
+hour
+Source
+Code 203
+_
+_
+_Column
+Number
+Header Name
+(by-station)
+Column
+Number
+Header Name
+(by-year)
+208 precipitation
+12
+hour
+Source
+Station
+_
+_
+_
+_
+_
+ID 204
+209 precipitation
+15
+hour 205
+_
+_
+210 precipitation
+15
+hour
+Measurement
+_
+_
+_
+_
+Code 206
+211 precipitation
+15
+hour
+_
+_
+_
+Quality_
+Code 207
+212 precipitation
+15
+hour
+_
+_
+_
+Report
+_
+Type 208
+213 precipitation
+15
+hour
+Source
+_
+_
+_
+_
+Code 209
+214 precipitation
+15
+hour
+Source
+Station
+_
+_
+_
+_
+_
+ID 210
+215 precipitation
+18
+hour 211
+_
+_
+216 precipitation
+18
+hour
+Measurement
+_
+_
+_
+_
+Code 212
+217 precipitation
+18
+hour
+_
+_
+_
+Quality_
+Code 213
+218 precipitation
+18
+hour
+_
+_
+_
+Report
+_
+Type 214
+219 precipitation
+18
+hour
+Source
+_
+_
+_
+_
+Code 215
+220 precipitation
+_
+18
+hour
+Source
+Station
+ID 216
+_
+_
+_
+_
+221 precipitation
+_
+21
+hour 217
+_
+222 precipitation
+_
+21
+hour
+Measurement
+Code 218
+_
+_
+_
+223 precipitation
+_
+21
+hour
+_
+_
+Quality_
+Code 219
+224 precipitation
+_
+21
+hour
+_
+_
+Report
+_
+Type 220
+225 precipitation
+_
+21
+hour
+Source
+Code 221
+_
+_
+_
+226 precipitation
+_
+21
+hour
+Source
+Station
+ID 222
+_
+_
+_
+_
+227 precipitation
+24
+hour 223
+_
+_
+228 precipitation
+24
+hour
+Measurement
+_
+_
+_
+_
+Code 224
+229 precipitation
+24
+hour
+_
+_
+_
+Quality_
+Code 225
+230 precipitation
+24
+hour
+_
+_
+_
+Report
+_
+Type 226Column
+Number
+Header Name
+(by-station)
+Column
+Number
+Header Name
+(by-year)
+231 precipitation
+24
+hour
+Source
+_
+_
+_
+_
+Code 227
+232 precipitation
+24
+hour
+Source
+Station
+_
+_
+_
+_
+_
+ID 228
+233 remarks 229
+234 remarks
+Measurement
+Code 230
+_
+_
+235 remarks
+_
+Quality_
+Code 231
+236 remarks
+_
+Report
+_
+Type 232
+237 remarks
+Source
+Code 233
+_
+_
+238 remarks
+Source
+Station
+ID 234
+_
+_
+_
+--------------------------------------------------------------------------------
+XI. List of Data Source Codes and Attributes
+Table 6: Data Source Codes
+Source
+code
+Source
+Data
+Policy Dataset name source
+name _
+domain
+First
+year
+Last
+year
+83 Open Access
+Deutscher
+Wetterdienst
+Deutscher Wetterdienst
+subdaily Germany
+88
+Creative
+Commons Attri
+unden
+UERRA
+_
+_
+algeri
+a
+Bulletin Meteorologique
+de Algerie–Contact: Per
+Unden Algeria 1879 1968158
+171 172 173 174 175 176 177 Creative
+Common
+Attribute 4.0 Open Access
+Open Access
+Open Access
+Open Access
+Open Access
+Open Access Open Access
+Met Eirann Met Eirann Synoptic Ireland
+meteo
+_godisnjak
+_
+UE
+RRA
+_
+europe
+Meteoroloski godisnjak 1
+BulteniAvailable through
+NOAA CDMP Europe 1877 kaspar
+pe
+UERRA
+euro
+_
+_
+Cyprus Meteorological
+Returns Norwegian
+Meteorological
+InstituteContact: Cristian
+Lussana cristianl@met.no
+and Provi Europe 1881 unden
+pe
+UERRA
+euro
+_
+_
+Rocenka Contact: Per
+Unden
+Per.Unden@smhi.se Europe 1948 egypt
+_
+UERRA
+daily_
+weather
+africa
+_
+_
+Egypt Daily Weather
+Report Africa 1948 romainian
+met
+UER
+RA
+_
+_
+_
+africa/europeG1
+76
+Romanian National
+Meteorological
+Administration
+BulteniAvailable through
+NOAACDMP
+Africa/Europ
+e 1950 dwd
+UERRA
+_
+_
+europe
+UERRA
+Deutscher
+_
+Wetterdienst Europe 1958 lussana
+UERRA
+euro
+_
+_
+pe
+Instituto Nacional de
+MeteorologÃa Banco de
+Datos Contact: Cristian
+Lussana cristianl@met.no Europe 1959 2012
+1922
+1968
+1957
+1977
+1978
+1984179 180 220
+221
+222
+223
+246
+247 Open Access
+Open Access WMO
+Resolution 40
+WMO
+Resolution 40
+WMO
+Resolution 40
+WMO
+Resolution 40
+WMO
+resolution 40
+Open Access
+slovenia
+met
+UERRA
+_
+_
+_
+europe
+Slovenian Environmental
+Agency Available through
+NOAACDMP yillik
+UERRA
+_
+_
+europe UERRA
+_
+Yillik USAF/14th Weather
+Squadron Surface
+Weather Observation
+database
+Stations indexed to World
+Meteorological
+Organization (WMO)
+Identifier USAF/14th Weather
+Squadron Surface
+Weather Observation
+database
+Stations indexed to
+former World
+Meteorological
+Organization (WMO)
+Identifiers (termed
+“AFWA” id’s) USAF/14th Weather
+Squadron Surface
+Weather Observation
+database
+NOAA Coastal -Marine
+Automated Network
+(C-MAN) stations
+USAF/14th Weather
+Squadron Surface
+Weather Observation
+database
+Stations indexed to an
+International Civil
+Aviation Organization
+(ICAO) Identifier ISPD
+International
+_
+Surface Pressure
+databank
+Federal
+_
+Climate Com
+International Surface
+Pressure
+databank
+Federal Climate
+_
+Complex Integrated
+Surface Data ISPD
+International
+_
+Surface Pressure
+databank
+CDMP
+_
+SAO/1001 For
+International Surface
+Pressure databank
+CDMP
+_
+SAO/1001 Forms USA Europe Europe Global
+Global
+North
+America
+Global
+Global Global 1950 1950 1928 1849 1977
+1971
+1948
+2000248 249
+250 251
+252 253
+254 Open Access
+Mixed data
+policy
+Open Access
+WMO
+resolution 40
+Open Access
+Creative
+Commons Attri
+Open Access
+ISPD
+International
+_
+Surface Pressure
+databank
+Russian
+_
+Empire Station
+ISPD
+International
+_
+Surface Pressure
+databank
+Air
+_
+Weather Service T
+ISPD
+International
+_
+Surface Pressure
+databank
+_
+Hadley
+Center UK
+su
+_
+ISPD
+International
+_
+Surface Pressure
+databank
+CDMP-Inte
+_
+rnational c
+ISPD
+International
+_
+Surface Pressure
+databank
+READER
+_
+Antarctic&So
+ISPD
+International
+_
+Surface Pressure
+databank
+KNMI
+Holland
+_
+sub
+d
+_
+_
+ISPD
+International
+_
+Surface Pressure
+databank
+_
+US Army
+Signal Service
+International Surface
+Pressure
+databank
+_
+Russian Empire
+Stations International Surface
+Pressure databank
+Air
+_
+Weather Service TD13
+USA International Surface
+Pressure
+databank
+_
+Hadley Center
+UK International Surface
+Pressure
+databank
+CDMP-Internati
+_
+onal collection International Surface
+Pressure
+databank
+READER
+_
+Antarctic&Southern
+Hemisphere International Surface
+Pressure databank
+_
+KNMI
+Holland International Surface
+Pressure databank
+US
+_
+Army Signal Service and
+other 19th Century
+Voluntary Obs Global Global Global Global Global Global Global 1901 1833 1800 1947 1911 1816 1784 1973
+2017
+1980
+2007
+2006
+1932
+1961255 256 257 258 259
+260
+Open Access
+Open Access
+Open Access
+Open Access
+WMO
+resolution 40
+WMO
+resolution 40
+ISPD
+International
+_
+Surface Pressure
+databank
+internatio
+_
+nal stations
+ISPD
+International
+_
+Surface Pressure
+databank
+_
+Early
+Arctic observation
+ISPD
+International
+_
+Surface Pressure
+databank
+EURO4M/
+_
+MEDARE/C3
+ISPD
+International
+_
+Surface Pressure
+databank
+Internatio
+_
+nal stations
+ISPD
+International
+_
+Surface Pressure
+databank
+Meteo
+Fr
+_
+_
+ance
+sub
+d
+_
+_
+ISPD
+International
+_
+Surface Pressure
+databank
+_
+University
+of Giessen
+International Surface
+Pressure
+databank
+international
+_
+stations recovered by
+Atmospheric Circulation
+Reconstructions o International Surface
+Pressure databank
+_
+Early
+Arctic observations International Surface
+Pressure
+databank
+EURO4M/MED
+_
+ARE/C3 hourly SLP
+observations for North
+African stations International Surface
+Pressure
+databank
+International
+_
+stations, University of
+South Carolina Historical
+Climate Lab International Surface
+Pressure
+databank
+Meteo
+France _
+_
+International Surface
+Pressure
+databank
+_
+University of
+Giessen worldwide early
+data Global Global Global Global
+Global Global 1848 1877 1843 1822 1871 1915
+1978
+1914
+1956
+1996261
+262 263 264
+265
+266 WMO
+resolution 40
+Open Access
+Open Access
+WMO
+resolution 40
+WMO
+resolution 40
+Open Access
+ISPD
+International
+_
+Surface Pressure
+databank
+WASA
+_
+Stations Obser
+ISPD
+International
+_
+Surface Pressure
+databank
+Environme
+_
+nt Canada
+ISPD
+International
+_
+Surface Pressure
+databank
+West
+_
+African Synoptic
+ISPD
+International
+_
+Surface Pressure
+databank
+The
+_
+Australian Bureau of
+Meteorology
+ISPD
+International
+_
+Surface Pressure
+databank
+Northern
+_
+Italian Pressure data
+ISPD
+International
+_
+Surface Pressure
+databank
+_
+Hourly
+Surface observations
+International Surface
+Pressure databank
+WASA
+_
+Stations Observations SLP International Surface
+Pressure
+databank
+Environment
+_
+Canada Pressure Obs International Surface
+Pressure databank
+West
+_
+African Synoptic
+observations digitized by
+MeteoFrance International Surface
+Pressure databank
+The
+_
+Australian Bureau of
+Meteorology Station
+Pressure Dataset International Surface
+Pressure
+databank
+Northern
+_
+Italian Pressure
+Observations International Surface
+Pressure databank
+Hourly
+_
+Surface Observations for
+Brazile Global Global Global Global Global Global 1842 1850 1900 1803 1951 1850 2004
+1980
+1956
+1999
+1980
+2003267 268 269 270 271 272
+Open Access
+ISPD
+International
+_
+Surface Pressure
+databank
+Spanish
+_
+Hourly Press
+Open Access
+ISPD
+International
+_
+Surface Pressure
+databank
+German
+_
+climate observations
+Open Access
+ISPD
+International
+_
+Surface Pressure
+databank
+ZAMG
+_
+Austrian station obs
+Open Access
+ISPD
+International
+_
+Surface Pressure
+databank
+Meteoswis
+_
+s station collection
+Open Access
+ISPD
+International
+_
+Surface Pressure
+databank
+South
+_
+African Weather
+Service
+Creative
+Commons Attri
+ISPD
+International
+_
+Surface Pressure
+databank
+National
+_
+Norwegian
+International Surface
+Pressure
+databank
+_
+Spanish Hourly
+Pressure Observations International Surface
+Pressure
+databank
+German
+_
+climate observations International Surface
+Pressure databank
+ZAMG
+_
+Austrian station
+observations International Surface
+Pressure
+databank
+Meteoswiss
+_
+station collection International Surface
+Pressure databank
+South
+_
+African Weather Service
+Meteorological collection International Surface
+Pressure
+databank
+National
+_
+Norwegian
+meteorological database Global Global Global Global Global Global 1876 1872 1964 1850 1863 1858 2000
+2002
+2002
+2003
+2007
+2005273
+274 275
+276
+277 278
+WMO
+resolution 40
+Open Access
+WMO
+resolution 40
+WMO
+resolution 40
+Open Access
+WMO
+resolution 40
+ISPD
+International
+_
+Surface Pressure
+databank
+Croatian
+_
+Meteorologi
+ISPD
+International
+_
+Surface Pressure
+databank
+_
+Signatures
+of environ
+ISPD
+International
+_
+Surface Pressure
+databank
+French
+_
+hourly SLP fro
+ISPD
+International
+_
+Surface Pressure
+databank
+Australia
+_
+historical su
+ISPD
+International
+_
+Surface Pressure
+databank
+ACRE-Pacif
+_
+ic: NIWA a
+ISPD
+International
+_
+Surface Pressure
+databank
+Spanish
+_
+Met Office st
+International Surface
+Pressure
+databank
+Croatian
+_
+Meteorological and
+Hydrological Service land
+stations International Surface
+Pressure
+databank
+_
+Signatures of
+environmental change in
+the observations of the
+Geophysical Ins International Surface
+Pressure
+databank
+_
+French hourly
+SLP from Meteo-France International Surface
+Pressure
+databank
+Australia
+_
+historical surface pressure International Surface
+Pressure
+databank
+ACRE-Pacific:
+_
+NIWA and NZMet Service International Surface
+Pressure
+databank
+_
+Spanish Met
+Office stations Global Global Global Global Global Global 1860 1815 1788 1937 1920 1755 2006
+1941
+1848
+1999
+1972
+1861279
+280
+281 282
+283
+284
+Mixed data
+policy
+WMO
+resolution 40
+Open Access
+WMO
+resolution 40
+WMO
+resolution 40
+WMO
+resolution 40
+ISPD
+International
+_
+Surface Pressure
+databank
+EMULATE
+_
+Daily MSLP
+ISPD
+International
+_
+Surface Pressure
+databank
+_
+Mozambiq
+ue station
+ISPD
+International
+_
+Surface Pressure
+databank
+_
+Japan
+Agency for Mar
+ISPD
+International
+_
+Surface Pressure
+databank
+African
+_
+SLP from Met
+ISPD
+International
+_
+Surface Pressure
+databank
+Tanzania
+_
+station pres
+ISPD
+International
+_
+Surface Pressure
+databank
+Hourly
+_
+pressure from
+International Surface
+Pressure
+databank
+_
+EMULATE Daily
+MSLP station data Global International Surface
+Pressure
+databank
+_
+Mozambique
+station pressure Global International Surface
+Pressure databank
+_
+Japan
+Agency for Marine-earth
+Science and Technology
+(JAMSTEC) archive Global International Surface
+Pressure
+databank
+African SLP
+_
+from Meteo France Global International Surface
+Pressure
+databank
+Tanzania
+_
+station pressure Global International Surface
+Pressure databank
+_
+Hourly
+pressure from China Global 1951 1913 1899 1972 1950 1965 2005
+1938
+1962
+2005
+2004
+2010285 286 287 288
+289 Open Access
+Open Access
+Open Access
+WMO
+resolution 40
+Open Access
+ISPD
+International
+_
+Surface Pressure
+databank
+All-Russia
+_
+Research I
+ISPD
+International
+_
+Surface Pressure
+databank
+Data from
+_
+Russian Hydromet
+ISPD
+International
+_
+Surface Pressure
+databank
+_
+Early
+Russian Empire
+ISPD
+International
+_
+Surface Pressure
+databank
+Australian
+_
+Meteorolo
+ISPD
+International
+_
+Surface Pressure
+databank
+Canadian
+_
+Volunteer
+International Surface
+Pressure
+databank
+All-Russia
+_
+Research Institute of
+Hydrometeorological
+Information - World Data International Surface
+Pressure databank
+Data
+_
+from Russian
+Hydrometcentre International Surface
+Pressure databank
+_
+Early
+Russian Empire Stations, ,
+digitized in LDEO from
+Kupffers Annuaires International Surface
+Pressure
+databank
+Australian
+_
+Meteorological
+Association, Todd Project
+team International Surface
+Pressure
+databank
+Canadian
+_
+Volunteer Climate Data
+Rescue project Global Global Global Global Global 2004 1835 1879 1798 1867 2012
+1840
+1900
+1869
+2011290 291
+292 293
+294 295
+Open Access
+WMO
+resolution 40
+Open Access
+WMO
+resolution 40
+Open Access
+WMO
+resolution 40
+ISPD
+International
+_
+Surface Pressure
+databank
+_
+University
+of Aberde
+ISPD
+International
+_
+Surface Pressure
+databank
+Icelandic
+_
+Meteorolog
+ISPD
+International
+_
+Surface Pressure
+databank
+ERA-CLIM
+FFCUL
+_
+sub
+_
+ISPD
+International
+_
+Surface Pressure
+databank
+Australian
+_
+Bureau of
+ISPD
+International
+_
+Surface Pressure
+databank
+_
+Project
+IMPROVE
+su
+_
+ISPD
+International
+_
+Surface Pressure
+databank
+_
+University
+of Barcelo
+International Surface
+Pressure
+databank
+_
+University of
+Aberdeen historical
+pressure observations International Surface
+Pressure
+databank
+Icelandic
+_
+Meteorological Office
+(IMO) Sea Level Pressure International Surface
+Pressure
+databank
+ERA-CLIM
+_
+FFCUL International Surface
+Pressure
+databank
+Australian
+_
+Bureau of
+Meteorology—Australian
+Baseline Sea Level
+Monitoring International Surface
+Pressure
+databank
+_
+Project
+IMPROVE International Surface
+Pressure
+databank
+_
+University of
+Barcelona Global Global Global Global Global Global 1845 1915 1992 1722 1811 1796 1873
+1946
+2013
+1865
+1820
+1863296 297
+298 299
+300 301 302
+Open Access
+creative
+Commons Attri
+Open access
+WMO
+resolution 40
+Open Access
+Open Access
+WMO
+resolution 40
+ISPD
+International
+_
+Surface Pressure
+databank
+_
+University
+of Bern
+su
+_
+ISPD
+International
+_
+Surface Pressure
+databank
+Stockholm
+_
+University
+ISPD
+International
+_
+Surface Pressure
+databank
+_
+University
+of East An
+ISPD
+International
+_
+Surface Pressure
+databank
+_
+University
+of Gdansk
+ISPD
+International
+_
+Surface Pressure
+databank
+ACRE-Pacif
+_
+ic: Cook Isl
+ISPD
+International
+_
+Surface Pressure
+databank
+ACRE-Pacif
+_
+ic: Pacific I
+ISPD
+International
+_
+Surface Pressure
+databank
+_
+Hong Kong
+Hourly Pr
+International Surface
+Pressure
+databank
+_
+University of
+Bern International Surface
+Pressure
+databank
+Stockholm
+_
+University International Surface
+Pressure
+databank
+_
+University of
+East Anglia International Surface
+Pressure
+databank
+_
+University of
+Gdansk International Surface
+Pressure
+databank
+ACRE-Pacific:
+_
+Cook Island Met Services International Surface
+Pressure
+databank
+ACRE-Pacific:
+_
+Pacific Island Met Services International Surface
+Pressure databank
+_
+Hong
+Kong Hourly Pressure
+Observations Global Global Global Global Global Global Global 1756 1815 1815 1929 1929 1885 1866 2012
+1817
+1817
+2010
+1950
+2011
+1944303
+304 305 306 307 308 WMO
+resolution 40
+Open Access
+Open Access
+Open access
+Open access
+Open access
+ISPD
+International
+_
+Surface Pressure
+databank
+Jakarta/Ba
+_
+tavia Press
+ISPD
+International
+_
+Surface Pressure
+databank
+William
+_
+Hutchinson p
+ISPD
+International
+_
+Surface Pressure
+databank
+Jersey,
+_
+Channel Islan
+ISPD
+International
+_
+Surface Pressure
+databank
+CMDP-US
+NO
+sub
+_
+dai
+_
+_
+ISPD
+International
+_
+Surface Pressure
+databank
+Russian
+_
+Sitka Sea Lev
+ISPD
+International
+_
+Surface Pressure
+databank
+_
+University
+of Toronto
+International Surface
+Pressure
+databank
+Jakarta/Batavia
+_
+Pressure Observations International Surface
+Pressure
+databank
+William
+_
+Hutchinson pressure,
+Liverpool International Surface
+Pressure databank
+Jersey,
+_
+Channel Island Pressure
+Obs International Surface
+Pressure
+databank
+CMDP-USNO _
+International Surface
+Pressure
+databank
+Russian Sitka
+_
+Sea Level Pressure,
+University of South
+Carolina Climate Lab International Surface
+Pressure
+databank
+_
+University of
+Toronto British Everest
+Expedition meteorological
+observation co Global Global Global Global Global Global 1768 1859 1841 1843 1924 1814 1793
+1913
+1913
+1867
+1924
+1817309
+310 311 312 313 314 315 316 317
+318
+319
+WMO
+resolution 40
+Open Access
+Open Access
+Open Access
+Open Access
+Open Access
+Open Access
+Open Access
+WMO
+resolution 40
+WMO
+resolution 40
+WMO
+resolution 40
+ISPD
+International
+_
+Surface Pressure
+databank
+_
+University
+of Extrema
+ISPD
+International
+_
+Surface Pressure
+databank
+_
+University
+of Helsinki
+ISPD
+International
+_
+Surface Pressure
+databank
+Antarctic
+_
+Expeditions
+ISPD
+International
+_
+Surface Pressure
+databank
+Canadian
+_
+Arctic Fort
+NOAA
+CDMP
+sub
+_
+_
+daily_
+US
+NOAA
+CDMP
+sub
+_
+_
+daily_
+US
+NOAA
+CDMP
+sub
+_
+_
+daily_
+US
+DWRUK
+sub
+_
+_
+daily_
+e
+urope
+NCAR
+_
+enland
+sub
+_
+daily_gre
+iceland
+_
+BAM
+sub
+_
+_
+daily_
+braz
+il
+ASODSO
+sub
+_
+_
+daily_
+australia
+International Surface
+Pressure
+databank
+University of
+_
+Extremadura International Surface
+Pressure
+databank
+_
+University of
+Helsinki International Surface
+Pressure
+databank
+Antarctic
+_
+Expeditions International Surface
+Pressure
+databank
+Canadian Arctic
+_
+Fort Rae SLP The Climate Database
+Modernization Program
+(CDMP) DSI 3850 The Climate Database
+Modernization Program
+(CDMP) DSI 3851 The Climate Database
+Modernization Program
+(CDMP) DSI 3853 The UK Met Office Daily
+Weather Reports NCAR’s Greenland/Iceland
+dataset
+Brazilian Air
+Ministry/Brazil. 1994
+(NCAR/RDA) Australia Summary of Day
+and Surface Observations
+(NCAR/RDA) Global Global Global Global
+USA USA USA Europe Greenland/Ic
+eland Brazil Australia 1800 1899 1882 1892 1928 1948 1899 1976 1951 1799 1838
+1941
+1883
+1948
+1948
+1997
+1910
+1999
+1981
+2020320 321 322
+323 324 325
+326 327 328 329 330 331
+332
+Open Access
+Open Access
+WMO
+resolution 40 Open Access
+Open Access WMO
+resolution 40
+Open Access
+Open Access
+Open Access
+Open Access
+Open Access
+Creative
+Commons Attri
+Creative
+Commons Attri
+NMB
+UKMO
+CCSP
+_
+_
+_
+China
+ACRE
+_
+Nanking Meteorological
+Bulletins -[pending DWD
+overseas
+_
+data
+China
+Pacific
+T
+_
+_
+_
+ogo
+german meteorological
+service deutscher
+wetterdienst DWD
+Mexico
+ISD _
+Mexico
+ISD NCEI datasets _
+UNI
+GIESSEN
+India
+_
+_
+_
+sbdy
+Digitisation and QC
+funded by the University
+of Giessen, ( India
+_
+sbdy) CHIMES University of Bern Austrian pressure
+data
+The Central Institution for
+Meteorology and
+Geodynamics (ZAMG) C3S
+south
+africa
+da
+_
+_
+_
+ta
+rescue
+Uni
+Witw
+_
+_
+_
+atesrand
+University of
+Witwatersrand MeteoCat
+UERRA
+s
+ub
+_
+_
+daily_
+spain
+_
+Meteorological Service of
+Catalonia Bulletin
+_
+ue
+UERRA
+Climatologiq
+sub
+_
+_
+daily
+_
+lebanon
+_
+Bulletin Climatologique,
+Lebanon Rocenka-annuaire
+U
+_
+ERRA
+sub
+_
+_
+daily_
+czec
+h Rocenka-annuaire
+Bulletin
+Meteoorolo
+_
+gique
+du
+_
+maroc
+UERRA
+s
+_
+_
+_
+ub
+_
+daily_
+Morocco
+Bulletin Meteoorologique
+du Maroc Met
+No
+UERRA
+sub
+_
+_
+_
+daily_
+Norway _
+Met Norway Uerra
+SMHI
+sub
+dai
+_
+ly_
+sweden
+_
+_
+SMHI, the Swedish
+Meteorological and
+Hydrological Institute China China, Sth
+Pacific Mexico India Switzerland Austria South Africa Spain Lebanon Czech
+republic Morocco Norway Sweden 1930 1890 1973 1874 1708 1874 1819 1988 1930 1949 1953 1959 1947 1931
+1914
+1999
+1890
+1873
+2002
+1903
+2015
+1939
+1984
+1968
+2016
+2015333
+334 335 336 337 338 339 340 341 342 343 344 345 WMO
+resolution
+40??
+Open Access
+Open Access Open Access
+Open Access
+Open Access
+Open Access Open Access
+Open Access Open Access?
+Open Access
+Open Access Open Access Chile
+Met
+Service
+h
+_
+_
+ourly_
+data
+_
+_
+chile
+UNI
+GIESSEN
+Austra
+lia
+_
+_
+sbdy
+_
+NCEI DSI-3280 CMA
+sub
+_
+_
+Daily_
+chin
+a
+CCSP
+China
+India
+s
+_
+_
+_
+bdy ACRE
+African
+_
+stations
+late19thC
+_
+sbdy
+_
+_
+Metoe
+lux
+_
+_
+sbdy ACRE
+Solomon
+Islan
+ds
+_
+_
+sbdy _
+ECC
+Canada
+_
+_
+hourly
+INMET
+Brazil
+_
+_
+Hourly
+_
+Daily
+NCEI/ASOS/AWOS
+(NOAA Surface
+Weather
+Observations)
+NCEI/MAPSO
+NCEI/US CRN
+Chile Meteorological
+Directorate Digitisation and QC
+funded by the University
+of Giessen,
+(Australia-Adelaide
+_
+sbdy) NOAA/NCEI
+National
+Climate
+Centre
+CMA
+_
+ISPD3043 _
+_
+_
+CCSP
+China
+India
+_
+_
+ACRE
+African
+_
+stations
+late19thC
+_
+_
+_
+sbdy Meteo Lux ACRE
+Solomon
+Islands
+_
+_
+Environment & Climate
+Change Canada INMET brazilian met
+service NOAA's National Centers
+for Environmental
+Information (NCEI)
+NCEI/ASOS/AWOS NOAA's National Centers
+for Environmental
+Information (NCEI)
+NCEI/MAPSO NOAA's National Centers
+for Environmental
+Information (NCEI)
+NCEI/US CRN Chile Australia China India /Sri
+Lanka Africa Luxembourg Solomon
+Islands Canada Brazil USA USA USA 1950 1876 1902 1934 1892 2011 1909 1953 1904 2004 2004 2001 2020
+1897
+1953
+1935
+1907
+2020
+1940
+ongoing
+2021
+ongoing
+ongoing
+ongoing346 347 348 349 350 356 357 382 Open Access NCEI/SURFRAD
+Open Access NCEI/FAA
+Open Access NCEI/CANA
+Open Access DWD Overseas Data Open Access DWD Overseas Data Open Access Japan Met Service CC-BY-NC University of Bern Open Access Coop HPD
+NOAA's National Centers
+for Environmental
+Information (NCEI)
+NCEI/SURFRAD USA NOAA's National Centers
+for Environmental
+Information
+(NCEI)NCEI/FAA USA NOAA's National Centers
+for Environmental
+Information (NCEI)
+NCEI/CANA USA DWD Overseas Data
+Canada
+(New
+Foundland/
+Labrador) DWD Cameroon JMA Japan University of Bern U.S. Coop Hourly
+Precipitation (HPD),
+Version 2 and NOAA/NCEI
+DSI 3240 and 3260 USA Europe 2004 1882 1885 1975 1781 ongoing
+ongoing
+ongoing
+1939
+1939
+2008
+1792
+ongoing
