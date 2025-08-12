@@ -281,16 +281,17 @@ class GHCNhProcessor:
         """
         Applies quality control to the data, setting flagged values to NaN.
 
-        This method creates new columns with a '_clean' suffix for QC'd data,
-        preserving the original values. It also tracks the number of values
-        flagged for each variable and stores it in the `qc_summary` attribute.
+        This method modifies the variable columns in-place. It also tracks
+        the number of values flagged for each variable and stores it in the
+        `qc_summary` attribute.
 
         Args:
             df (pd.DataFrame): The input DataFrame with station data.
             level (str): The QC level to apply ('strict' or 'lenient'). Defaults to 'strict'.
 
         Returns:
-            pd.DataFrame: The DataFrame with added '_clean' columns.
+            pd.DataFrame: The DataFrame with quality-controlled values in the
+                          original variable columns.
         """
         if level not in self.qc_flags_to_reject:
             raise ValueError(f"QC level must be one of: {list(self.qc_flags_to_reject.keys())}")
@@ -303,15 +304,14 @@ class GHCNhProcessor:
         print(f"Applying '{level}' QC to {len(variables)} variables.")
 
         for var in variables:
-            clean_col = f"{var}_clean"
             qc_col = f"{var}_Quality_Code"
-            df_qc[clean_col] = df_qc[var]
 
             num_flagged = 0
             if qc_col in df_qc.columns:
                 bad_data_mask = df_qc[qc_col].isin(flags_to_reject)
                 num_flagged = bad_data_mask.sum()
-                df_qc.loc[bad_data_mask, clean_col] = np.nan
+                # Overwrite original variable column with NaNs where QC flags are present
+                df_qc.loc[bad_data_mask, var] = np.nan
             
             qc_counts[var] = num_flagged
         
@@ -351,83 +351,9 @@ class GHCNhProcessor:
         df_qc = self.quality_control(df, level=qc_level)
         
         core_cols = ['Station_ID', 'Station_name', 'Latitude', 'Longitude', 'Elevation', 'remarks']
-        cleaned_data_cols = [f"{var}_clean" for var in self._get_variables_from_df(df)]
+        cleaned_data_cols = self._get_variables_from_df(df)
         
         final_cols = core_cols + cleaned_data_cols
         final_cols_exist = [col for col in final_cols if col in df_qc.columns]
         
         return df_qc[final_cols_exist]
-
-
-if __name__ == '__main__':
-    # This is an example of how to use the class
-    
-    # Initialize the processor
-    processor = GHCNhProcessor(
-        station_list_path='ghcnh-station-list.csv',
-        cache_dir='ghcnh_data_cache' # Use a specific cache directory for the example
-    )
-
-    # --- Find a station ---
-    # Find stations in Texas with ICAO codes
-    tx_airports = processor.find_stations(has_icao=True, state='TX')
-    
-    station_to_process = None
-    year_to_process = 2023
-
-    if tx_airports is not None and not tx_airports.empty:
-        print("Found Texas airports:")
-        print(tx_airports.head())
-        # Let's pick one station to process, e.g., the first one
-        station_to_process = tx_airports.index[0]
-    else:
-        # As a fallback if no TX airports are in the short list, use a known station
-        print("Texas airport not in the short station list, using a default station for demonstration.")
-        station_to_process = 'AEI0000OMAA' # Abu Dhabi Intl, from the short list
-    
-    if station_to_process:
-        # --- Demonstrate getting raw data and inspecting a variable ---
-        year_to_inspect = 2023
-        print(f"\nDownloading raw data for {station_to_process} for {year_to_inspect} to inspect 'temperature' variable...")
-        raw_data = processor.download_years_data(station_to_process, year_to_inspect)
-        if raw_data is not None:
-            temp_details = processor.get_variable_details(raw_data, 'temperature')
-            print("\nDetails for 'temperature' variable (raw data):")
-            print(temp_details.head())
-
-        # --- Get and process data for that station using the main by-year pipeline ---
-        print(f"\nProcessing data for station {station_to_process} for year {year_to_inspect}...")
-        processed_data = processor.get_station_years_data(
-            station_id=station_to_process,
-            years=year_to_inspect,
-            qc_level='strict'
-        )
-
-        if processed_data is not None:
-            print("\nSuccessfully processed data for a single year. Here's a sample:")
-            print(processed_data.head())
-            
-            # Save to a file
-            output_file = f"./{station_to_process}_{year_to_inspect}_clean.csv"
-            processed_data.to_csv(output_file)
-            print(f"\nCleaned single-year data saved to {output_file}")
-            
-        # --- Demonstrate the multi-year download functionality ---
-        print(f"\n--- Now demonstrating multi-year download for {station_to_process} (2021-2023) ---")
-        years_to_process = [2021, 2022, 2023]
-        multi_year_data = processor.get_station_years_data(
-            station_id=station_to_process,
-            years=years_to_process,
-            qc_level='strict'
-        )
-        if multi_year_data is not None:
-            print("\nSuccessfully processed multi-year data. Here's a sample:")
-            print(multi_year_data.head())
-            
-            start_date = multi_year_data.index.min().strftime('%Y-%m-%d')
-            end_date = multi_year_data.index.max().strftime('%Y-%m-%d')
-            print(f"\nMulti-year data covers from {start_date} to {end_date}")
-            
-            output_file = f"./{station_to_process}_{years_to_process[0]}-{years_to_process[-1]}_clean.csv"
-            multi_year_data.to_csv(output_file)
-            print(f"\nCleaned multi-year data saved to {output_file}")
