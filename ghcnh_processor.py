@@ -55,17 +55,17 @@ class GHCNhProcessor:
             ]
         }
 
-    def _load_station_metadata(self, path):
-        """Loads and preprocesses the station metadata file."""
+    def _load_station_metadata(self, station_list_path):
+        """Loads and preprocesses the station list file."""
         try:
-            df = pd.read_csv(path)
+            df = pd.read_csv(station_list_path)
             df.columns = df.columns.str.replace(r'[\(\)-]', '', regex=True).str.replace('__', '_')
             df.set_index('GHCN_ID', inplace=True)
             if 'ICAO' in df.columns:
                 df['ICAO'] = df['ICAO'].str.strip()
             return df
         except FileNotFoundError:
-            print(f"Error: Station metadata file not found at {path}", file=sys.stderr)
+            print(f"Error: Station metadata file not found at {station_list_path}", file=sys.stderr)
             return None
 
     def find_stations(self, has_icao=None, state=None, name_contains=None):
