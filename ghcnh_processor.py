@@ -94,14 +94,15 @@ class GHCNhProcessor:
             df['ICAO'] = df['ICAO'].str.strip()
         return df
 
-
-    def find_stations(self, has_icao=None, state=None, name_contains=None):
+    def find_stations(self, has_icao=None, has_wmo_id=None, state=None, name_contains=None):
         """
         Finds stations based on metadata criteria.
 
         Args:
             has_icao (bool, optional): If True, returns only stations with an ICAO code.
                                        If False, returns stations without one. Defaults to None.
+            has_wmo_id (bool, optional): If True, returns only stations with a WMO ID.
+                                         If False, returns stations without one. Defaults to None.
             state (str, optional): Filters by 2-letter state abbreviation. Defaults to None.
             name_contains (str, optional): Filters by a string contained in the station name (case-insensitive).
                                            Defaults to None.
@@ -114,14 +115,30 @@ class GHCNhProcessor:
 
         filtered_df = self.station_metadata.copy()
         if has_icao is not None:
-            if has_icao:
-                filtered_df = filtered_df[filtered_df['ICAO'].notna() & (filtered_df['ICAO'] != '')]
-            else:
-                filtered_df = filtered_df[filtered_df['ICAO'].isna() | (filtered_df['ICAO'] == '')]
+            if 'ICAO' in filtered_df.columns:
+                if has_icao:
+                    filtered_df = filtered_df[filtered_df['ICAO'].notna() & (filtered_df['ICAO'] != '')]
+                else:
+                    filtered_df = filtered_df[filtered_df['ICAO'].isna() | (filtered_df['ICAO'] == '')]
+            elif has_icao:
+                return pd.DataFrame(columns=filtered_df.columns)
+
+        if has_wmo_id is not None:
+            if 'WMO_ID' in filtered_df.columns:
+                if has_wmo_id:
+                    filtered_df = filtered_df[filtered_df['WMO_ID'].notna()]
+                else:
+                    filtered_df = filtered_df[filtered_df['WMO_ID'].isna()]
+            elif has_wmo_id:
+                return pd.DataFrame(columns=filtered_df.columns)
+
         if state:
-            filtered_df = filtered_df[filtered_df['STATE'].str.upper() == state.upper()]
+            if 'STATE' in filtered_df.columns:
+                filtered_df = filtered_df[filtered_df['STATE'].str.upper() == state.upper()]
+
         if name_contains:
-            filtered_df = filtered_df[filtered_df['NAME'].str.contains(name_contains, case=False)]
+            if 'NAME' in filtered_df.columns:
+                filtered_df = filtered_df[filtered_df['NAME'].str.contains(name_contains, case=False)]
 
         return filtered_df
 
