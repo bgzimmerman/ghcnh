@@ -21,15 +21,21 @@ class GHCNhProcessor:
                                    to lists of QC flags that should be rejected.
     """
 
-    def __init__(self, station_list_path='ghcnh-station-list-short.csv', cache_dir='.ghcnh_cache'):
+    def __init__(self, station_list_path='ghcnh-station-list.csv', cache_dir='.ghcnh_cache'):
         """
         Initializes the processor by loading station metadata and setting up caching.
+
+        If the station list file does not exist at the specified path, it will be
+        downloaded automatically.
 
         Args:
             station_list_path (str): Path to the GHCNh station list CSV file.
             cache_dir (str): The directory to use for caching downloaded parquet files.
         """
-        self.station_metadata = self._load_station_metadata(station_list_path)
+        self.station_list_path = station_list_path
+        self._download_station_list_if_missing()
+
+        self.station_metadata = self._load_station_metadata()
         self.base_url = 'https://www.ncei.noaa.gov/oa/global-historical-climatology-network/hourly/access/by-year'
         self.qc_summary = None
         self.cache_dir = cache_dir
@@ -55,18 +61,39 @@ class GHCNhProcessor:
             ]
         }
 
-    def _load_station_metadata(self, station_list_path):
+    def _download_station_list_if_missing(self):
+        """Checks if the station list exists and downloads it if not."""
+        if not os.path.exists(self.station_list_path):
+            url = 'https://www.ncei.noaa.gov/oa/global-historical-climatology-network/hourly/doc/ghcnh-station-list.csv'
+            print(f"Station list not found at '{self.station_list_path}'.")
+            print(f"Downloading from {url}...")
+            
+            try:
+                # Ensure the directory exists before downloading
+                dir_name = os.path.dirname(self.station_list_path)
+                if dir_name:
+                    os.makedirs(dir_name, exist_ok=True)
+                
+                urllib.request.urlretrieve(url, self.station_list_path)
+                print("Successfully downloaded station list.")
+            except Exception as e:
+                print(f"Error: Failed to download station list: {e}", file=sys.stderr)
+                # Set station_metadata to None if download fails
+                self.station_metadata = None
+
+    def _load_station_metadata(self):
         """Loads and preprocesses the station list file."""
-        try:
-            df = pd.read_csv(station_list_path)
-            df.columns = df.columns.str.replace(r'[\(\)-]', '', regex=True).str.replace('__', '_')
-            df.set_index('GHCN_ID', inplace=True)
-            if 'ICAO' in df.columns:
-                df['ICAO'] = df['ICAO'].str.strip()
-            return df
-        except FileNotFoundError:
-            print(f"Error: Station metadata file not found at {station_list_path}", file=sys.stderr)
+        if not os.path.exists(self.station_list_path):
+            print(f"Error: Station metadata file not found at {self.station_list_path}", file=sys.stderr)
             return None
+            
+        df = pd.read_csv(self.station_list_path)
+        df.columns = df.columns.str.replace(r'[\(\)-]', '', regex=True).str.replace('__', '_')
+        df.set_index('GHCN_ID', inplace=True)
+        if 'ICAO' in df.columns:
+            df['ICAO'] = df['ICAO'].str.strip()
+        return df
+
 
     def find_stations(self, has_icao=None, state=None, name_contains=None):
         """
@@ -337,7 +364,7 @@ if __name__ == '__main__':
     
     # Initialize the processor
     processor = GHCNhProcessor(
-        station_list_path='ghcnh-station-list-short.csv',
+        station_list_path='ghcnh-station-list.csv',
         cache_dir='ghcnh_data_cache' # Use a specific cache directory for the example
     )
 
