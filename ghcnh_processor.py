@@ -253,7 +253,7 @@ class GHCNhProcessor:
         """Identifies core meteorological variables from the DataFrame columns, excluding 'remarks'."""
         qc_cols = [col for col in df.columns if col.endswith('_Quality_Code')]
         variables = [col.replace('_Quality_Code', '') for col in qc_cols]
-        # Remarks are text-based and do not undergo the same QC process.
+        # Remarks are text-based metar reports - TODO: add python metar library to parse these
         return [var for var in variables if var != 'remarks']
 
     def get_variable_details(self, df, variable_name):
