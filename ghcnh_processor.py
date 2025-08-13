@@ -88,10 +88,7 @@ class GHCNhProcessor:
             return None
             
         df = pd.read_csv(self.station_list_path)
-        df.columns = df.columns.str.replace(r'[\(\)-]', '', regex=True).str.replace('__', '_')
         df.set_index('GHCN_ID', inplace=True)
-        if 'ICAO' in df.columns:
-            df['ICAO'] = df['ICAO'].str.strip()
         return df
 
     def find_stations(self, has_icao=None, has_wmo_id=None, state=None, name_contains=None):
@@ -294,7 +291,7 @@ class GHCNhProcessor:
 
         return df[existing_cols].copy()
 
-    def quality_control(self, df, level='strict'):
+    def quality_control(self, df, level='strict', verbose=True):
         """
         Applies quality control to the data, setting flagged values to NaN.
 
@@ -305,6 +302,7 @@ class GHCNhProcessor:
         Args:
             df (pd.DataFrame): The input DataFrame with station data.
             level (str): The QC level to apply ('strict' or 'lenient'). Defaults to 'strict'.
+            verbose (bool): If True, prints QC summary information. Defaults to True.
 
         Returns:
             pd.DataFrame: The DataFrame with quality-controlled values in the
@@ -318,7 +316,8 @@ class GHCNhProcessor:
         df_qc = df.copy()
         qc_counts = {}
 
-        print(f"Applying '{level}' QC to {len(variables)} variables.")
+        if verbose:
+            print(f"Applying '{level}' QC to {len(variables)} variables.")
 
         for var in variables:
             qc_col = f"{var}_Quality_Code"
@@ -334,16 +333,17 @@ class GHCNhProcessor:
         
         self.qc_summary = pd.Series(qc_counts).sort_values(ascending=False)
         
-        print("QC Summary: Number of values flagged for removal.")
-        flagged_summary = self.qc_summary[self.qc_summary > 0]
-        if not flagged_summary.empty:
-            print(flagged_summary)
-        else:
-            print("No values flagged for removal based on current QC level.")
+        if verbose:
+            print("QC Summary: Number of values flagged for removal.")
+            flagged_summary = self.qc_summary[self.qc_summary > 0]
+            if not flagged_summary.empty:
+                print(flagged_summary)
+            else:
+                print("No values flagged for removal based on current QC level.")
             
         return df_qc
 
-    def get_station_years_data(self, station_id, years, qc_level='strict'):
+    def get_station_years_data(self, station_id, years, qc_level='strict', verbose=True):
         """
         High-level method to download and process data for one or more years.
 
@@ -354,6 +354,7 @@ class GHCNhProcessor:
             station_id (str): The GHCN_ID of the station.
             years (int or list of int): A single year or a list of years to process.
             qc_level (str): The quality control level.
+            verbose (bool): If True, prints QC summary information. Defaults to True.
 
         Returns:
             pd.DataFrame or None: A cleaned DataFrame for the specified years.
@@ -365,7 +366,7 @@ class GHCNhProcessor:
         if df is None:
             return None
 
-        df_qc = self.quality_control(df, level=qc_level)
+        df_qc = self.quality_control(df, level=qc_level, verbose=verbose)
         
         core_cols = ['Station_ID', 'Station_name', 'Latitude', 'Longitude', 'Elevation', 'remarks']
         cleaned_data_cols = self._get_variables_from_df(df)
