@@ -343,7 +343,7 @@ class GHCNhProcessor:
             
         return df_qc
 
-    def get_station_years_data(self, station_id, years, qc_level='strict', verbose=True):
+    def get_station_years_data(self, station_id, years, qc_level='strict', verbose=True, save_path=None):
         """
         High-level method to download and process data for one or more years.
 
@@ -355,6 +355,8 @@ class GHCNhProcessor:
             years (int or list of int): A single year or a list of years to process.
             qc_level (str): The quality control level.
             verbose (bool): If True, prints QC summary information. Defaults to True.
+            save_path (str, optional): If provided, the final DataFrame will be saved
+                                       to this path as a CSV file. Defaults to None.
 
         Returns:
             pd.DataFrame or None: A cleaned DataFrame for the specified years.
@@ -374,4 +376,18 @@ class GHCNhProcessor:
         final_cols = core_cols + cleaned_data_cols
         final_cols_exist = [col for col in final_cols if col in df_qc.columns]
         
-        return df_qc[final_cols_exist]
+        final_df = df_qc[final_cols_exist]
+
+        if save_path:
+            try:
+                # Ensure the directory for the save path exists
+                output_dir = os.path.dirname(save_path)
+                if output_dir:
+                    os.makedirs(output_dir, exist_ok=True)
+                
+                final_df.to_csv(save_path)
+                print(f"Data successfully saved to {save_path}")
+            except Exception as e:
+                print(f"Error: Failed to save data to {save_path}: {e}", file=sys.stderr)
+
+        return final_df
