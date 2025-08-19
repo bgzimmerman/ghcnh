@@ -391,3 +391,8 @@ class GHCNhProcessor:
                 print(f"Error: Failed to save data to {save_path}: {e}", file=sys.stderr)
 
         return final_df
+        
+    def get_ghcn_id_from_icao(self, icao_code):
+        result = self.find_stations(has_icao=True)
+        match = result[result['ICAO'] == icao_code]
+        return match.index[0] if not match.empty else None
