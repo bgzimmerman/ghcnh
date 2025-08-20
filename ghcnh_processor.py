@@ -59,7 +59,9 @@ class GHCNhDownloader:
             self.logger.error(f"Failed to download station list: {e}")
             return False
 
-    def get_year_data_path(self, station_id: str, year: int) -> Optional[str]:
+    def get_year_data_path(
+        self, station_id: str, year: int
+    ) -> Optional[str]:
         """
         Ensures data for a specific station and year is cached locally, then returns its path.
 
@@ -113,7 +115,13 @@ class GHCNhProcessor:
         station_metadata (pd.DataFrame): A DataFrame containing metadata for all stations.
     """
 
-    def __init__(self, station_list_path: str = 'ghcnh-station-list.csv', cache_dir: str = '.ghcnh_cache', log_level: int = logging.INFO, download_timeout: int = 60):
+    def __init__(
+        self,
+        station_list_path: str = 'ghcnh-station-list.csv',
+        cache_dir: str = '.ghcnh_cache',
+        log_level: int = logging.INFO,
+        download_timeout: int = 60,
+    ):
         """
         Initializes the processor by setting up its components and loading station metadata.
 
@@ -165,7 +173,14 @@ class GHCNhProcessor:
 
     # --- High-Level Public Methods ---
 
-    def process_to_hourly(self, station_id: str, years: Union[int, List[int]], qc_level: str = 'strict', save_path: Optional[str] = None, resample_frequencies: Optional[List[str]] = None) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], Optional[pd.DataFrame]]:
+    def process_to_hourly(
+        self,
+        station_id: str,
+        years: Union[int, List[int]],
+        qc_level: str = 'strict',
+        save_path: Optional[str] = None,
+        resample_frequencies: Optional[List[str]] = None,
+    ) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], Optional[pd.DataFrame]]:
         """
         Downloads, cleans, and processes data into a final hourly time series.
 
@@ -237,7 +252,13 @@ class GHCNhProcessor:
 
         return combined_df, metar_df, synop_df
 
-    def get_station_years_data(self, station_id: str, years: Union[int, List[int]], qc_level: str = 'strict', save_path: Optional[str] = None) -> Optional[pd.DataFrame]:
+    def get_station_years_data(
+        self,
+        station_id: str,
+        years: Union[int, List[int]],
+        qc_level: str = 'strict',
+        save_path: Optional[str] = None,
+    ) -> Optional[pd.DataFrame]:
         """
         High-level method to retrieve and process data for one or more years.
 
@@ -287,7 +308,13 @@ class GHCNhProcessor:
 
     # --- Public Utility Methods ---
 
-    def find_stations(self, has_icao: Optional[bool] = None, has_wmo_id: Optional[bool] = None, state: Optional[str] = None, name_contains: Optional[str] = None) -> Optional[pd.DataFrame]:
+    def find_stations(
+        self,
+        has_icao: Optional[bool] = None,
+        has_wmo_id: Optional[bool] = None,
+        state: Optional[str] = None,
+        name_contains: Optional[str] = None,
+    ) -> Optional[pd.DataFrame]:
         """
         Finds stations based on metadata criteria.
 
@@ -353,7 +380,9 @@ class GHCNhProcessor:
         match = result[result['ICAO'] == icao_code]
         return match.index[0] if not match.empty else None
 
-    def get_variable_details(self, df: pd.DataFrame, variable_name: str) -> pd.DataFrame:
+    def get_variable_details(
+        self, df: pd.DataFrame, variable_name: str
+    ) -> pd.DataFrame:
         """
         Extracts all related columns for a single variable from a DataFrame.
 
@@ -384,7 +413,9 @@ class GHCNhProcessor:
 
     # --- Mid-Level Data Acquisition & QC ---
 
-    def get_processed_years_data(self, station_id: str, years: Union[int, List[int]]) -> Optional[pd.DataFrame]:
+    def get_processed_years_data(
+        self, station_id: str, years: Union[int, List[int]]
+    ) -> Optional[pd.DataFrame]:
         """
         Retrieves and concatenates data for a station over multiple years using parallel threads.
 
@@ -421,7 +452,9 @@ class GHCNhProcessor:
         # Sort by the 'DATE' index to ensure the combined dataframe is in chronological order
         return pd.concat(all_years_dfs).sort_index()
 
-    def quality_control(self, df: pd.DataFrame, level: str = 'strict') -> pd.DataFrame:
+    def quality_control(
+        self, df: pd.DataFrame, level: str = 'strict'
+    ) -> pd.DataFrame:
         """
         Applies quality control to the data, setting flagged values to NaN.
 
@@ -470,7 +503,9 @@ class GHCNhProcessor:
 
     # --- Internal Helper Methods ---
 
-    def _create_hourly_timeseries(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    def _create_hourly_timeseries(
+        self, df: pd.DataFrame
+    ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Internal helper to process raw data into a clean, hourly time series.
 
@@ -552,7 +587,9 @@ class GHCNhProcessor:
 
         return combined_df, hourly_metar, hourly_synop
 
-    def _save_resampled_frequencies(self, df: pd.DataFrame, base_save_path: str, frequencies: List[str]) -> None:
+    def _save_resampled_frequencies(
+        self, df: pd.DataFrame, base_save_path: str, frequencies: List[str]
+    ) -> None:
         """
         Resamples a DataFrame to specified frequencies and saves them to subdirectories.
 
@@ -620,7 +657,9 @@ class GHCNhProcessor:
             except Exception as e:
                 self.logger.error(f"Error: Failed to resample or save for frequency '{freq_name}': {e}")
 
-    def _get_processed_year_data(self, station_id: str, year: int) -> Optional[pd.DataFrame]:
+    def _get_processed_year_data(
+        self, station_id: str, year: int
+    ) -> Optional[pd.DataFrame]:
         """
         Internal helper to get a single year of data.
 
@@ -639,7 +678,9 @@ class GHCNhProcessor:
             return self._read_and_process_parquet(file_path, station_id)
         return None
 
-    def _read_and_process_parquet(self, file_path: str, station_id: str) -> Optional[pd.DataFrame]:
+    def _read_and_process_parquet(
+        self, file_path: str, station_id: str
+    ) -> Optional[pd.DataFrame]:
         """
         Reads a local parquet file and enriches it with metadata.
 
