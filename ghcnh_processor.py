@@ -4,6 +4,7 @@ import urllib.request
 import concurrent.futures
 import logging
 import shutil
+from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 
@@ -23,7 +24,7 @@ class GHCNhProcessor:
                                    to lists of QC flags that should be rejected.
     """
 
-    def __init__(self, station_list_path='ghcnh-station-list.csv', cache_dir='.ghcnh_cache', log_level=logging.INFO, download_timeout=60):
+    def __init__(self, station_list_path: str = 'ghcnh-station-list.csv', cache_dir: str = '.ghcnh_cache', log_level: int = logging.INFO, download_timeout: int = 60):
         """
         Initializes the processor by loading station metadata and setting up caching.
 
@@ -80,7 +81,7 @@ class GHCNhProcessor:
             'ICAO': 'station_code'
         }
 
-    def _setup_logger(self, log_level):
+    def _setup_logger(self, log_level: int) -> None:
         """Initializes a logger for the class instance."""
         self.logger = logging.getLogger(self.__class__.__name__)
         if not self.logger.handlers:
@@ -90,7 +91,7 @@ class GHCNhProcessor:
             handler.setFormatter(formatter)
             self.logger.addHandler(handler)
 
-    def _download_station_list_if_missing(self):
+    def _download_station_list_if_missing(self) -> None:
         """Checks if the station list exists and downloads it if not."""
         if not os.path.exists(self.station_list_path):
             url = 'https://www.ncei.noaa.gov/oa/global-historical-climatology-network/hourly/doc/ghcnh-station-list.csv'
@@ -110,17 +111,21 @@ class GHCNhProcessor:
                 # Set station_metadata to None if download fails
                 self.station_metadata = None
 
-    def _load_station_metadata(self):
+    def _load_station_metadata(self) -> Optional[pd.DataFrame]:
         """Loads and preprocesses the station list file."""
         if not os.path.exists(self.station_list_path):
             self.logger.error(f"Station metadata file not found at {self.station_list_path}")
             return None
             
-        df = pd.read_csv(self.station_list_path)
-        df.set_index('GHCN_ID', inplace=True)
-        return df
+        try:
+            df = pd.read_csv(self.station_list_path)
+            df.set_index('GHCN_ID', inplace=True)
+            return df
+        except Exception as e:
+            self.logger.error(f"Failed to load or process station metadata from {self.station_list_path}: {e}")
+            return None
 
-    def find_stations(self, has_icao=None, has_wmo_id=None, state=None, name_contains=None):
+    def find_stations(self, has_icao: Optional[bool] = None, has_wmo_id: Optional[bool] = None, state: Optional[str] = None, name_contains: Optional[str] = None) -> Optional[pd.DataFrame]:
         """
         Finds stations based on metadata criteria.
 
@@ -137,6 +142,7 @@ class GHCNhProcessor:
             pd.DataFrame: A DataFrame of matching stations, or None if metadata is not loaded.
         """
         if self.station_metadata is None:
+            self.logger.warning("Station metadata not loaded. Cannot find stations.")
             return None
 
         filtered_df = self.station_metadata.copy()
@@ -168,7 +174,7 @@ class GHCNhProcessor:
 
         return filtered_df
 
-    def _download_year_data(self, station_id, year):
+    def _download_year_data(self, station_id: str, year: int) -> Optional[pd.DataFrame]:
         """
         Downloads data for a single station and year, using a local cache to avoid re-downloads.
 
@@ -245,7 +251,7 @@ class GHCNhProcessor:
             # os.remove(cache_path)
             return None
 
-    def download_years_data(self, station_id, years):
+    def download_years_data(self, station_id: str, years: Union[int, List[int]]) -> Optional[pd.DataFrame]:
         """
         Downloads and concatenates data for a station over a list of years using parallel threads.
 
@@ -285,14 +291,14 @@ class GHCNhProcessor:
         # Sort by the 'DATE' index to ensure the combined dataframe is in chronological order
         return pd.concat(all_years_dfs).sort_index()
 
-    def _get_variables_from_df(self, df):
+    def _get_variables_from_df(self, df: pd.DataFrame) -> List[str]:
         """Identifies core meteorological variables from the DataFrame columns, excluding 'remarks'."""
         qc_cols = [col for col in df.columns if col.endswith('_Quality_Code')]
         variables = [col.replace('_Quality_Code', '') for col in qc_cols]
         # Remarks are text-based metar reports - TODO: add python metar library to parse these
         return [var for var in variables if var != 'remarks']
 
-    def get_variable_details(self, df, variable_name):
+    def get_variable_details(self, df: pd.DataFrame, variable_name: str) -> pd.DataFrame:
         """
         Extracts all related columns for a single variable from a DataFrame.
 
@@ -327,7 +333,7 @@ class GHCNhProcessor:
 
         return df[existing_cols].copy()
 
-    def quality_control(self, df, level='strict'):
+    def quality_control(self, df: pd.DataFrame, level: str = 'strict') -> pd.DataFrame:
         """
         Applies quality control to the data, setting flagged values to NaN.
 
@@ -376,7 +382,7 @@ class GHCNhProcessor:
             
         return df_qc
 
-    def get_station_years_data(self, station_id, years, qc_level='strict', save_path=None):
+    def get_station_years_data(self, station_id: str, years: Union[int, List[int]], qc_level: str = 'strict', save_path: Optional[str] = None) -> Optional[pd.DataFrame]:
         """
         High-level method to download and process data for one or more years.
 
@@ -398,6 +404,7 @@ class GHCNhProcessor:
 
         df = self.download_years_data(station_id, years)
         if df is None:
+            self.logger.error(f"Failed to download any data for station {station_id}, cannot proceed.")
             return None
 
         df_qc = self.quality_control(df, level=qc_level)
@@ -424,7 +431,7 @@ class GHCNhProcessor:
 
         return final_df
 
-    def _resample_and_save(self, df, base_save_path, frequencies):
+    def _resample_and_save(self, df: pd.DataFrame, base_save_path: str, frequencies: List[str]) -> None:
         """
         Resamples a DataFrame to specified frequencies and saves them to subdirectories.
         """
@@ -488,7 +495,7 @@ class GHCNhProcessor:
             except Exception as e:
                 self.logger.error(f"Error: Failed to resample or save for frequency '{freq_name}': {e}")
 
-    def _resample_and_combine(self, df):
+    def _resample_and_combine(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Internal helper to process raw data into a clean, hourly time series.
         """
@@ -511,6 +518,7 @@ class GHCNhProcessor:
             df_qc['Report_Type'] = df_qc['temperature_Report_Type']
         else:
             # Fallback if temperature report type is not available
+            self.logger.warning("'temperature_Report_Type' not found. Using 'UNKNOWN' as fallback Report_Type.")
             df_qc['Report_Type'] = 'UNKNOWN'
 
         metar_reports = ['FM15-METAR', 'FM16-SPECI']
@@ -563,7 +571,7 @@ class GHCNhProcessor:
 
         return combined_df, hourly_metar, hourly_synop
         
-    def process_to_hourly(self, station_id, years, qc_level='strict', save_path=None, resample_frequencies=None):
+    def process_to_hourly(self, station_id: str, years: Union[int, List[int]], qc_level: str = 'strict', save_path: Optional[str] = None, resample_frequencies: Optional[List[str]] = None) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], Optional[pd.DataFrame]]:
         """
         Downloads, cleans, and processes data into a final hourly time series,
         intelligently combining different report types. If a save_path is provided,
@@ -635,7 +643,7 @@ class GHCNhProcessor:
 
         return combined_df, metar_df, synop_df
 
-    def get_ghcn_id_from_icao(self, icao_code):
+    def get_ghcn_id_from_icao(self, icao_code: str) -> Optional[str]:
         result = self.find_stations(has_icao=True)
         match = result[result['ICAO'] == icao_code]
         return match.index[0] if not match.empty else None
