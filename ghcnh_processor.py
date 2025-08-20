@@ -3,6 +3,7 @@ import os
 import urllib.request
 import concurrent.futures
 import logging
+import shutil
 import numpy as np
 import pandas as pd
 
@@ -22,7 +23,7 @@ class GHCNhProcessor:
                                    to lists of QC flags that should be rejected.
     """
 
-    def __init__(self, station_list_path='ghcnh-station-list.csv', cache_dir='.ghcnh_cache', log_level=logging.INFO):
+    def __init__(self, station_list_path='ghcnh-station-list.csv', cache_dir='.ghcnh_cache', log_level=logging.INFO, download_timeout=60):
         """
         Initializes the processor by loading station metadata and setting up caching.
 
@@ -33,6 +34,7 @@ class GHCNhProcessor:
             station_list_path (str): Path to the GHCNh station list CSV file.
             cache_dir (str): The directory to use for caching downloaded parquet files.
             log_level (int): The logging level for the logger (e.g., logging.INFO).
+            download_timeout (int): Timeout in seconds for network download operations.
         """
         self.station_list_path = station_list_path
         self._setup_logger(log_level)
@@ -42,6 +44,7 @@ class GHCNhProcessor:
         self.base_url = 'https://www.ncei.noaa.gov/oa/global-historical-climatology-network/hourly/access/by-year'
         self.qc_summary = None
         self.cache_dir = cache_dir
+        self.download_timeout = download_timeout
         if self.cache_dir:
             os.makedirs(self.cache_dir, exist_ok=True)
             self.logger.info(f"Using cache directory: {os.path.abspath(self.cache_dir)}")
@@ -192,7 +195,9 @@ class GHCNhProcessor:
                 return None
             
             try:
-                urllib.request.urlretrieve(parquet_url, cache_path)
+                # Use urlopen with a timeout to prevent hanging threads
+                with urllib.request.urlopen(parquet_url, timeout=self.download_timeout) as response, open(cache_path, 'wb') as out_file:
+                    shutil.copyfileobj(response, out_file)
                 self.logger.info(f"Successfully downloaded and cached file to: {cache_path}")
             except urllib.error.HTTPError as e:
                 # NCEI returns 404 if data for a station-year doesn't exist
@@ -200,6 +205,9 @@ class GHCNhProcessor:
                     self.logger.warning(f"No data found for station {station_id} for year {year} (404 Not Found).")
                 else:
                     self.logger.error(f"Failed to download data for {station_id}, year {year}: {e}")
+                return None
+            except TimeoutError:
+                self.logger.error(f"Download for {station_id}, year {year} timed out after {self.download_timeout} seconds.")
                 return None
             except Exception as e:
                 self.logger.error(f"An unexpected error occurred during download for {station_id}, year {year}: {e}")
