@@ -2,6 +2,7 @@ import sys
 import os
 import urllib.request
 import concurrent.futures
+import logging
 import numpy as np
 import pandas as pd
 
@@ -21,7 +22,7 @@ class GHCNhProcessor:
                                    to lists of QC flags that should be rejected.
     """
 
-    def __init__(self, station_list_path='ghcnh-station-list.csv', cache_dir='.ghcnh_cache'):
+    def __init__(self, station_list_path='ghcnh-station-list.csv', cache_dir='.ghcnh_cache', log_level=logging.INFO):
         """
         Initializes the processor by loading station metadata and setting up caching.
 
@@ -31,8 +32,10 @@ class GHCNhProcessor:
         Args:
             station_list_path (str): Path to the GHCNh station list CSV file.
             cache_dir (str): The directory to use for caching downloaded parquet files.
+            log_level (int): The logging level for the logger (e.g., logging.INFO).
         """
         self.station_list_path = station_list_path
+        self._setup_logger(log_level)
         self._download_station_list_if_missing()
 
         self.station_metadata = self._load_station_metadata()
@@ -41,7 +44,7 @@ class GHCNhProcessor:
         self.cache_dir = cache_dir
         if self.cache_dir:
             os.makedirs(self.cache_dir, exist_ok=True)
-            print(f"Using cache directory: {os.path.abspath(self.cache_dir)}")
+            self.logger.info(f"Using cache directory: {os.path.abspath(self.cache_dir)}")
 
         self.qc_flags_to_reject = {
             'strict': [
@@ -74,12 +77,22 @@ class GHCNhProcessor:
             'ICAO': 'station_code'
         }
 
+    def _setup_logger(self, log_level):
+        """Initializes a logger for the class instance."""
+        self.logger = logging.getLogger(self.__class__.__name__)
+        if not self.logger.handlers:
+            self.logger.setLevel(log_level)
+            handler = logging.StreamHandler(sys.stdout)
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            handler.setFormatter(formatter)
+            self.logger.addHandler(handler)
+
     def _download_station_list_if_missing(self):
         """Checks if the station list exists and downloads it if not."""
         if not os.path.exists(self.station_list_path):
             url = 'https://www.ncei.noaa.gov/oa/global-historical-climatology-network/hourly/doc/ghcnh-station-list.csv'
-            print(f"Station list not found at '{self.station_list_path}'.")
-            print(f"Downloading from {url}...")
+            self.logger.warning(f"Station list not found at '{self.station_list_path}'.")
+            self.logger.info(f"Downloading from {url}...")
             
             try:
                 # Ensure the directory exists before downloading
@@ -88,16 +101,16 @@ class GHCNhProcessor:
                     os.makedirs(dir_name, exist_ok=True)
                 
                 urllib.request.urlretrieve(url, self.station_list_path)
-                print("Successfully downloaded station list.")
+                self.logger.info("Successfully downloaded station list.")
             except Exception as e:
-                print(f"Error: Failed to download station list: {e}", file=sys.stderr)
+                self.logger.error(f"Failed to download station list: {e}")
                 # Set station_metadata to None if download fails
                 self.station_metadata = None
 
     def _load_station_metadata(self):
         """Loads and preprocesses the station list file."""
         if not os.path.exists(self.station_list_path):
-            print(f"Error: Station metadata file not found at {self.station_list_path}", file=sys.stderr)
+            self.logger.error(f"Station metadata file not found at {self.station_list_path}")
             return None
             
         df = pd.read_csv(self.station_list_path)
@@ -172,27 +185,27 @@ class GHCNhProcessor:
         # Step 1: Ensure the parquet file is available locally (from cache or download)
         if not (cache_path and os.path.exists(cache_path)):
             parquet_url = f"{self.base_url}/{year}/parquet/{file_name}"
-            print(f"Attempting to download from: {parquet_url}")
+            self.logger.info(f"Attempting to download from: {parquet_url}")
 
             if not cache_path:
-                print("Error: Caching is required but no cache directory is set.", file=sys.stderr)
+                self.logger.error("Caching is required but no cache directory is set.")
                 return None
             
             try:
                 urllib.request.urlretrieve(parquet_url, cache_path)
-                print(f"Successfully downloaded and cached file to: {cache_path}")
+                self.logger.info(f"Successfully downloaded and cached file to: {cache_path}")
             except urllib.error.HTTPError as e:
                 # NCEI returns 404 if data for a station-year doesn't exist
                 if e.code == 404:
-                    print(f"No data found for station {station_id} for year {year} (404 Not Found).", file=sys.stderr)
+                    self.logger.warning(f"No data found for station {station_id} for year {year} (404 Not Found).")
                 else:
-                    print(f"Failed to download data for {station_id}, year {year}: {e}", file=sys.stderr)
+                    self.logger.error(f"Failed to download data for {station_id}, year {year}: {e}")
                 return None
             except Exception as e:
-                print(f"An unexpected error occurred during download for {station_id}, year {year}: {e}", file=sys.stderr)
+                self.logger.error(f"An unexpected error occurred during download for {station_id}, year {year}: {e}")
                 return None
         else:
-            print(f"Found cached file: {cache_path}")
+            self.logger.info(f"Found cached file: {cache_path}")
 
         # Step 2: Read the local parquet file into a DataFrame
         try:
@@ -214,12 +227,12 @@ class GHCNhProcessor:
                 if 'ICAO' in station_info and pd.notna(station_info['ICAO']):
                     df['ICAO'] = station_info['ICAO']
             else:
-                print(f"Warning: station {station_id} not found in metadata.", file=sys.stderr)
+                self.logger.warning(f"station {station_id} not found in metadata.")
                 
             return df
             
         except Exception as e:
-            print(f"Failed to read or process parquet file {cache_path}: {e}", file=sys.stderr)
+            self.logger.error(f"Failed to read or process parquet file {cache_path}: {e}")
             # Optional: could remove the corrupted cached file here
             # os.remove(cache_path)
             return None
@@ -255,10 +268,10 @@ class GHCNhProcessor:
                     if year_df is not None:
                         all_years_dfs.append(year_df)
                 except Exception as exc:
-                    print(f'{year} generated an exception: {exc}', file=sys.stderr)
+                    self.logger.error(f'{year} generated an exception: {exc}')
 
         if not all_years_dfs:
-            print(f"Warning: Could not retrieve any data for station {station_id} for the specified years.", file=sys.stderr)
+            self.logger.warning(f"Could not retrieve any data for station {station_id} for the specified years.")
             return None
 
         # Sort by the 'DATE' index to ensure the combined dataframe is in chronological order
@@ -301,12 +314,12 @@ class GHCNhProcessor:
         existing_cols = [col for col in related_cols if col in df.columns]
 
         if not existing_cols:
-            print(f"Warning: No columns found for variable '{variable_name}'.", file=sys.stderr)
+            self.logger.warning(f"No columns found for variable '{variable_name}'.")
             return pd.DataFrame()
 
         return df[existing_cols].copy()
 
-    def quality_control(self, df, level='strict', verbose=True):
+    def quality_control(self, df, level='strict'):
         """
         Applies quality control to the data, setting flagged values to NaN.
 
@@ -317,7 +330,6 @@ class GHCNhProcessor:
         Args:
             df (pd.DataFrame): The input DataFrame with station data.
             level (str): The QC level to apply ('strict' or 'lenient'). Defaults to 'strict'.
-            verbose (bool): If True, prints QC summary information. Defaults to True.
 
         Returns:
             pd.DataFrame: The DataFrame with quality-controlled values in the
@@ -331,8 +343,7 @@ class GHCNhProcessor:
         df_qc = df.copy()
         qc_counts = {}
 
-        if verbose:
-            print(f"Applying '{level}' QC to {len(variables)} variables.")
+        self.logger.info(f"Applying '{level}' QC to {len(variables)} variables.")
 
         for var in variables:
             qc_col = f"{var}_Quality_Code"
@@ -348,17 +359,16 @@ class GHCNhProcessor:
         
         self.qc_summary = pd.Series(qc_counts).sort_values(ascending=False)
         
-        if verbose:
-            print("QC Summary: Number of values flagged for removal.")
-            flagged_summary = self.qc_summary[self.qc_summary > 0]
-            if not flagged_summary.empty:
-                print(flagged_summary)
-            else:
-                print("No values flagged for removal based on current QC level.")
+        self.logger.info("QC Summary: Number of values flagged for removal.")
+        flagged_summary = self.qc_summary[self.qc_summary > 0]
+        if not flagged_summary.empty:
+            self.logger.info(f"\n{flagged_summary.to_string()}")
+        else:
+            self.logger.info("No values flagged for removal based on current QC level.")
             
         return df_qc
 
-    def get_station_years_data(self, station_id, years, qc_level='strict', verbose=True, save_path=None):
+    def get_station_years_data(self, station_id, years, qc_level='strict', save_path=None):
         """
         High-level method to download and process data for one or more years.
 
@@ -369,7 +379,6 @@ class GHCNhProcessor:
             station_id (str): The GHCN_ID of the station.
             years (int or list of int): A single year or a list of years to process.
             qc_level (str): The quality control level.
-            verbose (bool): If True, prints QC summary information. Defaults to True.
             save_path (str, optional): If provided, the final DataFrame will be saved
                                        to this path as a CSV file. Defaults to None.
 
@@ -383,7 +392,7 @@ class GHCNhProcessor:
         if df is None:
             return None
 
-        df_qc = self.quality_control(df, level=qc_level, verbose=verbose)
+        df_qc = self.quality_control(df, level=qc_level)
         
         core_cols = ['Station_ID', 'Station_name', 'Latitude', 'Longitude', 'Elevation', 'remarks']
         cleaned_data_cols = self._get_variables_from_df(df)
@@ -401,9 +410,9 @@ class GHCNhProcessor:
                     os.makedirs(output_dir, exist_ok=True)
                 
                 final_df.to_csv(save_path)
-                print(f"Data successfully saved to {save_path}")
+                self.logger.info(f"Data successfully saved to {save_path}")
             except Exception as e:
-                print(f"Error: Failed to save data to {save_path}: {e}", file=sys.stderr)
+                self.logger.error(f"Error: Failed to save data to {save_path}: {e}")
 
         return final_df
 
@@ -439,7 +448,7 @@ class GHCNhProcessor:
         numeric_cols = [col for col in numeric_cols if col not in coord_cols]
 
         if not numeric_cols:
-            print("Warning: No numeric data columns found to resample.", file=sys.stderr)
+            self.logger.warning("No numeric data columns found to resample.")
             return
 
         agg_dict = {col: 'mean' for col in numeric_cols}
@@ -449,7 +458,7 @@ class GHCNhProcessor:
         for freq_name in frequencies:
             pd_freq = freq_map.get(freq_name)
             if not pd_freq:
-                print(f"Warning: Unknown frequency '{freq_name}' requested. Skipping.", file=sys.stderr)
+                self.logger.warning(f"Unknown frequency '{freq_name}' requested. Skipping.")
                 continue
 
             try:
@@ -466,10 +475,10 @@ class GHCNhProcessor:
                 new_save_path = os.path.join(freq_dir, f"{base_name}_{freq_name}{ext}")
 
                 resampled_df.to_csv(new_save_path)
-                print(f"Successfully saved {freq_name} resampled data to: {new_save_path}")
+                self.logger.info(f"Successfully saved {freq_name} resampled data to: {new_save_path}")
 
             except Exception as e:
-                print(f"Error: Failed to resample or save for frequency '{freq_name}': {e}", file=sys.stderr)
+                self.logger.error(f"Error: Failed to resample or save for frequency '{freq_name}': {e}")
 
     def _resample_and_combine(self, df):
         """
@@ -486,7 +495,7 @@ class GHCNhProcessor:
         df_filtered = df[[col for col in cols_to_keep if col in df.columns]].copy()
 
         # Step B: Apply Quality Control (silently for this pipeline)
-        df_qc = self.quality_control(df_filtered, level='strict', verbose=False)
+        df_qc = self.quality_control(df_filtered, level='strict')
 
         # Step C: Prioritize and Separate Data
         # Use temperature's report type as the primary one
@@ -573,7 +582,7 @@ class GHCNhProcessor:
         # Download all raw data first
         raw_df = self.download_years_data(station_id, years)
         if raw_df is None:
-            print(f"No data found for station {station_id}. Aborting.", file=sys.stderr)
+            self.logger.error(f"No data found for station {station_id}. Aborting.")
             return None, None, None
 
         # Process and resample
@@ -595,7 +604,7 @@ class GHCNhProcessor:
                 # --- Save the main 1-hourly file ---
                 hourly_save_path = os.path.join(hourly_dir, f"{base_name}_1-hourly{ext}")
                 combined_df.to_csv(hourly_save_path)
-                print(f"Successfully saved combined 1-hourly data to: {hourly_save_path}")
+                self.logger.info(f"Successfully saved combined 1-hourly data to: {hourly_save_path}")
 
                 # --- Save the intermediate report-type files ---
                 metar_path = os.path.join(report_type_dir, f"{base_name}_metar{ext}")
@@ -603,14 +612,14 @@ class GHCNhProcessor:
                 
                 if not metar_df.empty:
                     metar_df.to_csv(metar_path)
-                    print(f"Successfully saved METAR data to: {metar_path}")
+                    self.logger.info(f"Successfully saved METAR data to: {metar_path}")
                 
                 if not synop_df.empty:
                     synop_df.to_csv(synop_path)
-                    print(f"Successfully saved SYNOP data to: {synop_path}")
+                    self.logger.info(f"Successfully saved SYNOP data to: {synop_path}")
 
             except Exception as e:
-                print(f"Error during file saving: {e}", file=sys.stderr)
+                self.logger.error(f"Error during file saving: {e}")
 
         # Perform and save additional resampling if requested
         if save_path and resample_frequencies:
