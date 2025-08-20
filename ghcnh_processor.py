@@ -9,27 +9,113 @@ import numpy as np
 import pandas as pd
 
 
+class GHCNhDownloader:
+    """Handles the downloading and caching of GHCNh data files."""
+
+    def __init__(self, cache_dir: str, timeout: int, logger: logging.Logger):
+        """
+        Initializes the downloader.
+
+        Args:
+            cache_dir (str): The directory to use for caching files.
+            timeout (int): Timeout in seconds for network download operations.
+            logger (logging.Logger): An existing logger instance for output.
+        """
+        self.base_url = 'https://www.ncei.noaa.gov/oa/global-historical-climatology-network/hourly/access/by-year'
+        self.cache_dir = cache_dir
+        self.timeout = timeout
+        self.logger = logger
+        if self.cache_dir:
+            os.makedirs(self.cache_dir, exist_ok=True)
+            self.logger.info(f"Downloader using cache directory: {os.path.abspath(self.cache_dir)}")
+
+    def download_station_list(self, path: str) -> bool:
+        """
+        Downloads the station list if it doesn't already exist at the specified path.
+
+        Args:
+            path (str): The target file path for the station list.
+
+        Returns:
+            bool: True if the file exists or was downloaded successfully, False otherwise.
+        """
+        if os.path.exists(path):
+            return True
+
+        url = 'https://www.ncei.noaa.gov/oa/global-historical-climatology-network/hourly/doc/ghcnh-station-list.csv'
+        self.logger.warning(f"Station list not found at '{path}'.")
+        self.logger.info(f"Downloading from {url}...")
+
+        try:
+            dir_name = os.path.dirname(path)
+            if dir_name:
+                os.makedirs(dir_name, exist_ok=True)
+
+            with urllib.request.urlopen(url, timeout=self.timeout) as response, open(path, 'wb') as out_file:
+                shutil.copyfileobj(response, out_file)
+            self.logger.info("Successfully downloaded station list.")
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to download station list: {e}")
+            return False
+
+    def get_year_data_path(self, station_id: str, year: int) -> Optional[str]:
+        """
+        Ensures data for a specific station and year is cached locally, then returns its path.
+
+        If the file is not in the cache, it will be downloaded.
+
+        Args:
+            station_id (str): The GHCN_ID of the station.
+            year (int): The year to get data for.
+
+        Returns:
+            Optional[str]: The local file path to the parquet file, or None if it could not be retrieved.
+        """
+        file_name = f"GHCNh_{station_id}_{year}.parquet"
+        cache_path = os.path.join(self.cache_dir, file_name)
+
+        if os.path.exists(cache_path):
+            self.logger.info(f"Found cached file: {cache_path}")
+            return cache_path
+
+        parquet_url = f"{self.base_url}/{year}/parquet/{file_name}"
+        self.logger.info(f"Attempting to download from: {parquet_url}")
+
+        try:
+            with urllib.request.urlopen(parquet_url, timeout=self.timeout) as response, open(cache_path, 'wb') as out_file:
+                shutil.copyfileobj(response, out_file)
+            self.logger.info(f"Successfully downloaded and cached file to: {cache_path}")
+            return cache_path
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                self.logger.warning(f"No data found for station {station_id} for year {year} (404 Not Found).")
+            else:
+                self.logger.error(f"Failed to download data for {station_id}, year {year}: {e}")
+            return None
+        except TimeoutError:
+            self.logger.error(f"Download for {station_id}, year {year} timed out after {self.timeout} seconds.")
+            return None
+        except Exception as e:
+            self.logger.error(f"An unexpected error occurred during download for {station_id}, year {year}: {e}")
+            return None
+
+
 class GHCNhProcessor:
     """
-    A class to download, process, and quality-control GHCN-hourly data.
+    A class to process, and quality-control GHCN-hourly data.
 
     This class provides a structured way to interact with the GHCNh dataset,
-    automating the download, metadata integration, quality control, and
-    final processing steps.
+    automating metadata integration, quality control, and final processing steps.
+    It uses a GHCNhDownloader instance to handle data acquisition.
 
     Attributes:
         station_metadata (pd.DataFrame): A DataFrame containing metadata for all stations.
-        base_url (str): The base URL for accessing the NCEI data repository.
-        qc_flags_to_reject (dict): A dictionary mapping QC levels ('strict', 'lenient')
-                                   to lists of QC flags that should be rejected.
     """
 
     def __init__(self, station_list_path: str = 'ghcnh-station-list.csv', cache_dir: str = '.ghcnh_cache', log_level: int = logging.INFO, download_timeout: int = 60):
         """
-        Initializes the processor by loading station metadata and setting up caching.
-
-        If the station list file does not exist at the specified path, it will be
-        downloaded automatically.
+        Initializes the processor by setting up its components and loading station metadata.
 
         Args:
             station_list_path (str): Path to the GHCNh station list CSV file.
@@ -37,18 +123,14 @@ class GHCNhProcessor:
             log_level (int): The logging level for the logger (e.g., logging.INFO).
             download_timeout (int): Timeout in seconds for network download operations.
         """
-        self.station_list_path = station_list_path
         self._setup_logger(log_level)
+        self.downloader = GHCNhDownloader(cache_dir, download_timeout, self.logger)
+        
+        self.station_list_path = station_list_path
         self._download_station_list_if_missing()
-
         self.station_metadata = self._load_station_metadata()
-        self.base_url = 'https://www.ncei.noaa.gov/oa/global-historical-climatology-network/hourly/access/by-year'
+
         self.qc_summary = None
-        self.cache_dir = cache_dir
-        self.download_timeout = download_timeout
-        if self.cache_dir:
-            os.makedirs(self.cache_dir, exist_ok=True)
-            self.logger.info(f"Using cache directory: {os.path.abspath(self.cache_dir)}")
 
         self.qc_flags_to_reject = {
             'strict': [
@@ -92,24 +174,8 @@ class GHCNhProcessor:
             self.logger.addHandler(handler)
 
     def _download_station_list_if_missing(self) -> None:
-        """Checks if the station list exists and downloads it if not."""
-        if not os.path.exists(self.station_list_path):
-            url = 'https://www.ncei.noaa.gov/oa/global-historical-climatology-network/hourly/doc/ghcnh-station-list.csv'
-            self.logger.warning(f"Station list not found at '{self.station_list_path}'.")
-            self.logger.info(f"Downloading from {url}...")
-            
-            try:
-                # Ensure the directory exists before downloading
-                dir_name = os.path.dirname(self.station_list_path)
-                if dir_name:
-                    os.makedirs(dir_name, exist_ok=True)
-                
-                urllib.request.urlretrieve(url, self.station_list_path)
-                self.logger.info("Successfully downloaded station list.")
-            except Exception as e:
-                self.logger.error(f"Failed to download station list: {e}")
-                # Set station_metadata to None if download fails
-                self.station_metadata = None
+        """Ensures the station list is available locally using the downloader."""
+        self.downloader.download_station_list(self.station_list_path)
 
     def _load_station_metadata(self) -> Optional[pd.DataFrame]:
         """Loads and preprocesses the station list file."""
@@ -174,63 +240,24 @@ class GHCNhProcessor:
 
         return filtered_df
 
-    def _download_year_data(self, station_id: str, year: int) -> Optional[pd.DataFrame]:
+    def _read_and_process_parquet(self, file_path: str, station_id: str) -> Optional[pd.DataFrame]:
         """
-        Downloads data for a single station and year, using a local cache to avoid re-downloads.
-
-        This is an internal helper method.
+        Reads a local parquet file and enriches it with metadata.
 
         Args:
-            station_id (str): The GHCN_ID of the station.
-            year (int): The year to download data for.
+            file_path (str): The local path to the parquet file.
+            station_id (str): The GHCN_ID of the station to add to the DataFrame.
 
         Returns:
-            pd.DataFrame or None: A DataFrame with the station's data for that year,
-                                  or None if the download or read fails.
+            Optional[pd.DataFrame]: The processed DataFrame, or None on failure.
         """
-        file_name = f"GHCNh_{station_id}_{year}.parquet"
-        cache_path = os.path.join(self.cache_dir, file_name) if self.cache_dir else None
-
-        # Step 1: Ensure the parquet file is available locally (from cache or download)
-        if not (cache_path and os.path.exists(cache_path)):
-            parquet_url = f"{self.base_url}/{year}/parquet/{file_name}"
-            self.logger.info(f"Attempting to download from: {parquet_url}")
-
-            if not cache_path:
-                self.logger.error("Caching is required but no cache directory is set.")
-                return None
-            
-            try:
-                # Use urlopen with a timeout to prevent hanging threads
-                with urllib.request.urlopen(parquet_url, timeout=self.download_timeout) as response, open(cache_path, 'wb') as out_file:
-                    shutil.copyfileobj(response, out_file)
-                self.logger.info(f"Successfully downloaded and cached file to: {cache_path}")
-            except urllib.error.HTTPError as e:
-                # NCEI returns 404 if data for a station-year doesn't exist
-                if e.code == 404:
-                    self.logger.warning(f"No data found for station {station_id} for year {year} (404 Not Found).")
-                else:
-                    self.logger.error(f"Failed to download data for {station_id}, year {year}: {e}")
-                return None
-            except TimeoutError:
-                self.logger.error(f"Download for {station_id}, year {year} timed out after {self.download_timeout} seconds.")
-                return None
-            except Exception as e:
-                self.logger.error(f"An unexpected error occurred during download for {station_id}, year {year}: {e}")
-                return None
-        else:
-            self.logger.info(f"Found cached file: {cache_path}")
-
-        # Step 2: Read the local parquet file into a DataFrame
         try:
-            df = pd.read_parquet(cache_path)
+            df = pd.read_parquet(file_path)
 
-            # Convert to datetime and set as index
             if 'DATE' in df.columns:
                 df['DATE'] = pd.to_datetime(df['DATE'], utc=True)
                 df.set_index('DATE', inplace=True)
             
-            # Fill metadata from station list
             df['Station_ID'] = station_id
             if self.station_metadata is not None and station_id in self.station_metadata.index:
                 station_info = self.station_metadata.loc[station_id]
@@ -246,35 +273,49 @@ class GHCNhProcessor:
             return df
             
         except Exception as e:
-            self.logger.error(f"Failed to read or process parquet file {cache_path}: {e}")
-            # Optional: could remove the corrupted cached file here
-            # os.remove(cache_path)
+            self.logger.error(f"Failed to read or process parquet file {file_path}: {e}")
             return None
 
-    def download_years_data(self, station_id: str, years: Union[int, List[int]]) -> Optional[pd.DataFrame]:
+    def _get_processed_year_data(self, station_id: str, year: int) -> Optional[pd.DataFrame]:
         """
-        Downloads and concatenates data for a station over a list of years using parallel threads.
+        Internal helper to get a single year of data.
 
-        This method uses a ThreadPoolExecutor to download multiple yearly files concurrently,
+        This method orchestrates the download (via the downloader) and the subsequent
+        reading and processing of the local file.
+
+        Args:
+            station_id (str): The GHCN_ID of the station.
+            year (int): The year to get data for.
+
+        Returns:
+            Optional[pd.DataFrame]: The processed DataFrame, or None on failure.
+        """
+        file_path = self.downloader.get_year_data_path(station_id, year)
+        if file_path:
+            return self._read_and_process_parquet(file_path, station_id)
+        return None
+
+    def get_processed_years_data(self, station_id: str, years: Union[int, List[int]]) -> Optional[pd.DataFrame]:
+        """
+        Retrieves and concatenates data for a station over multiple years using parallel threads.
+
+        This method uses a ThreadPoolExecutor to fetch multiple yearly files concurrently,
         significantly speeding up the process for multi-year requests.
 
         Args:
             station_id (str): The GHCN_ID of the station.
-            years (int or list of int): A single year or a list of years to download.
+            years (int or list of int): A single year or a list of years to retrieve.
 
         Returns:
-            pd.DataFrame or None: A DataFrame containing data for all specified
-                                  years, or None if no data could be retrieved.
+            Optional[pd.DataFrame]: A DataFrame containing data for all specified years,
+                                    or None if no data could be retrieved.
         """
         if isinstance(years, int):
             years = [years]
 
         all_years_dfs = []
-        # Use a ThreadPoolExecutor to download years in parallel
-        # This is ideal for I/O-bound tasks like downloading files
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            # Create a future for each year's download
-            future_to_year = {executor.submit(self._download_year_data, station_id, year): year for year in years}
+            future_to_year = {executor.submit(self._get_processed_year_data, station_id, year): year for year in years}
             for future in concurrent.futures.as_completed(future_to_year):
                 year = future_to_year[future]
                 try:
@@ -292,7 +333,18 @@ class GHCNhProcessor:
         return pd.concat(all_years_dfs).sort_index()
 
     def _get_variables_from_df(self, df: pd.DataFrame) -> List[str]:
-        """Identifies core meteorological variables from the DataFrame columns, excluding 'remarks'."""
+        """
+        Identifies core meteorological variables from the DataFrame columns.
+
+        This method excludes 'remarks' as it is a text-based field not suitable
+        for numerical quality control.
+
+        Args:
+            df (pd.DataFrame): The input DataFrame.
+
+        Returns:
+            List[str]: A list of variable names found in the DataFrame.
+        """
         qc_cols = [col for col in df.columns if col.endswith('_Quality_Code')]
         variables = [col.replace('_Quality_Code', '') for col in qc_cols]
         # Remarks are text-based metar reports - TODO: add python metar library to parse these
@@ -314,13 +366,7 @@ class GHCNhProcessor:
                           specified variable, or an empty DataFrame if none are found.
         """
         related_cols = [variable_name]
-        suffixes = [
-            '_Measurement_Code',
-            '_Quality_Code',
-            '_Report_Type',
-            '_Source_Code',
-            '_Source_Station_ID'
-        ]
+        suffixes = ['_Measurement_Code', '_Quality_Code', '_Report_Type', '_Source_Code', '_Source_Station_ID']
 
         for suffix in suffixes:
             related_cols.append(f"{variable_name}{suffix}")
@@ -343,11 +389,10 @@ class GHCNhProcessor:
 
         Args:
             df (pd.DataFrame): The input DataFrame with station data.
-            level (str): The QC level to apply ('strict' or 'lenient'). Defaults to 'strict'.
+            level (str): The QC level to apply ('strict' or 'lenient').
 
         Returns:
-            pd.DataFrame: The DataFrame with quality-controlled values in the
-                          original variable columns.
+            pd.DataFrame: The DataFrame with quality-controlled values.
         """
         if level not in self.qc_flags_to_reject:
             raise ValueError(f"QC level must be one of: {list(self.qc_flags_to_reject.keys())}")
@@ -361,7 +406,6 @@ class GHCNhProcessor:
 
         for var in variables:
             qc_col = f"{var}_Quality_Code"
-
             num_flagged = 0
             if qc_col in df_qc.columns:
                 bad_data_mask = df_qc[qc_col].isin(flags_to_reject)
@@ -384,25 +428,25 @@ class GHCNhProcessor:
 
     def get_station_years_data(self, station_id: str, years: Union[int, List[int]], qc_level: str = 'strict', save_path: Optional[str] = None) -> Optional[pd.DataFrame]:
         """
-        High-level method to download and process data for one or more years.
+        High-level method to retrieve and process data for one or more years.
 
-        This is the primary method for fetching year-based data. It can handle
-        a single year or a list of years.
+        This is the primary method for fetching year-based data. It orchestrates
+        the download and quality control processes.
 
         Args:
             station_id (str): The GHCN_ID of the station.
             years (int or list of int): A single year or a list of years to process.
             qc_level (str): The quality control level.
             save_path (str, optional): If provided, the final DataFrame will be saved
-                                       to this path as a CSV file. Defaults to None.
+                                       to this path as a CSV file.
 
         Returns:
-            pd.DataFrame or None: A cleaned DataFrame for the specified years.
+            Optional[pd.DataFrame]: A cleaned DataFrame for the specified years.
         """
         if isinstance(years, int):
             years = [years]
 
-        df = self.download_years_data(station_id, years)
+        df = self.get_processed_years_data(station_id, years)
         if df is None:
             self.logger.error(f"Failed to download any data for station {station_id}, cannot proceed.")
             return None
@@ -419,7 +463,6 @@ class GHCNhProcessor:
 
         if save_path:
             try:
-                # Ensure the directory for the save path exists
                 output_dir = os.path.dirname(save_path)
                 if output_dir:
                     os.makedirs(output_dir, exist_ok=True)
@@ -434,6 +477,11 @@ class GHCNhProcessor:
     def _resample_and_save(self, df: pd.DataFrame, base_save_path: str, frequencies: List[str]) -> None:
         """
         Resamples a DataFrame to specified frequencies and saves them to subdirectories.
+
+        Args:
+            df (pd.DataFrame): The DataFrame to resample (should be 1-hourly).
+            base_save_path (str): The base path for saving files, used to derive directory and filename.
+            frequencies (List[str]): A list of frequency strings (e.g., '3-hourly', 'daily').
         """
         freq_map = {
             '3-hourly': '3h', '6-hourly': '6h', '12-hourly': '12h',
@@ -452,13 +500,12 @@ class GHCNhProcessor:
         present_static_cols = [col for col in final_static_cols if col in df.columns]
         static_data = {}
         if not df.empty and present_static_cols:
-            # Get the first valid value for each static column
             first_valid_row = df[present_static_cols].dropna()
             if not first_valid_row.empty:
                 static_data = first_valid_row.iloc[0].to_dict()
 
+        # Isolate numeric columns for aggregation, excluding coordinates
         numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
-        # Ensure we don't try to aggregate coordinate columns
         coord_cols = ['Latitude', 'Longitude', 'Elevation']
         numeric_cols = [col for col in numeric_cols if col not in coord_cols]
 
@@ -498,6 +545,15 @@ class GHCNhProcessor:
     def _resample_and_combine(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Internal helper to process raw data into a clean, hourly time series.
+
+        This method performs the core data cleaning and prioritization logic.
+
+        Args:
+            df (pd.DataFrame): The raw, multi-year DataFrame for a single station.
+
+        Returns:
+            Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: A tuple containing the
+                combined hourly data, the METAR-only hourly data, and the SYNOP-only hourly data.
         """
         # Step A: Filter for core variables and their metadata
         cols_to_keep = self.core_variables[:]
@@ -513,11 +569,10 @@ class GHCNhProcessor:
         df_qc = self.quality_control(df_filtered, level='strict')
 
         # Step C: Prioritize and Separate Data
-        # Use temperature's report type as the primary one
+        # Use temperature's report type as the primary one for a consistent time series
         if 'temperature_Report_Type' in df_qc.columns:
             df_qc['Report_Type'] = df_qc['temperature_Report_Type']
         else:
-            # Fallback if temperature report type is not available
             self.logger.warning("'temperature_Report_Type' not found. Using 'UNKNOWN' as fallback Report_Type.")
             df_qc['Report_Type'] = 'UNKNOWN'
 
@@ -542,14 +597,13 @@ class GHCNhProcessor:
         hourly_synop = df_synop.resample('1h').agg(agg_rules_filtered) if not df_synop.empty else pd.DataFrame()
 
         # Step E: Combine with priority
-        # Start with METAR, then fill missing with SYNOP
+        # Start with METAR, then fill missing values with SYNOP data
         combined_df = hourly_metar.combine_first(hourly_synop)
 
-        # Add back station metadata, which is static
+        # Add back station metadata, which is static across all records
         static_data = {}
         for col in self.static_metadata_columns:
             if col in df_qc.columns and not df_qc[col].empty:
-                # Get the first valid value for the static column
                 first_valid = df_qc[col].dropna().iloc[0] if not df_qc[col].dropna().empty else None
                 if first_valid is not None:
                     static_data[col] = first_valid
@@ -561,53 +615,52 @@ class GHCNhProcessor:
             if not hourly_synop.empty:
                 hourly_synop[col] = val
 
-        # Rename columns to match user's preference
-        rename_dict = {'Station_ID': 'GHCN_ID', 'ICAO': 'station_code'}
-        combined_df.rename(columns=rename_dict, inplace=True)
+        # Rename columns to final desired format
+        combined_df.rename(columns=self.static_metadata_rename_dict, inplace=True)
         if not hourly_metar.empty:
-            hourly_metar.rename(columns=rename_dict, inplace=True)
+            hourly_metar.rename(columns=self.static_metadata_rename_dict, inplace=True)
         if not hourly_synop.empty:
-            hourly_synop.rename(columns=rename_dict, inplace=True)
+            hourly_synop.rename(columns=self.static_metadata_rename_dict, inplace=True)
 
         return combined_df, hourly_metar, hourly_synop
         
     def process_to_hourly(self, station_id: str, years: Union[int, List[int]], qc_level: str = 'strict', save_path: Optional[str] = None, resample_frequencies: Optional[List[str]] = None) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], Optional[pd.DataFrame]]:
         """
-        Downloads, cleans, and processes data into a final hourly time series,
-        intelligently combining different report types. If a save_path is provided,
-        this function also generates and saves resampled datasets for all standard
-        frequencies by default.
+        Downloads, cleans, and processes data into a final hourly time series.
+
+        This high-level method orchestrates the entire pipeline from download to
+        final processed output. If a save_path is provided, it also generates
+        and saves resampled datasets for all standard frequencies by default.
 
         Args:
             station_id (str): The GHCN_ID of the station.
             years (int or list of int): A single year or a list of years to process.
             qc_level (str): The quality control level.
             save_path (str, optional): If provided, the final hourly DataFrame and any
-                                       resampled DataFrames will be saved. Defaults to None.
+                                       resampled DataFrames will be saved.
             resample_frequencies (list, optional): A list of frequencies to resample to.
-                                                   Defaults to all available frequencies.
-                                                   To disable resampling when saving, pass an empty list: [].
+                                                   Defaults to all standard frequencies.
+                                                   Pass an empty list `[]` to disable resampling.
+
+        Returns:
+            A tuple containing the final combined hourly data, the METAR-only data,
+            and the SYNOP-only data, or (None, None, None) on failure.
         """
-        # If no frequencies are specified, default to all of them.
         if resample_frequencies is None:
             resample_frequencies = [
                 '3-hourly', '6-hourly', '12-hourly', 'daily', 
                 'weekly', 'monthly', 'seasonal'
             ]
 
-        # Download all raw data first
-        raw_df = self.download_years_data(station_id, years)
+        raw_df = self.get_processed_years_data(station_id, years)
         if raw_df is None:
             self.logger.error(f"No data found for station {station_id}. Aborting.")
             return None, None, None
 
-        # Process and resample
         combined_df, metar_df, synop_df = self._resample_and_combine(raw_df)
 
-        # Save primary and intermediate files if a path is provided
         if save_path:
             try:
-                # Deconstruct the user-provided path to get the directory and base filename
                 output_dir = os.path.dirname(save_path)
                 base_name, ext = os.path.splitext(os.path.basename(save_path))
 
@@ -617,12 +670,12 @@ class GHCNhProcessor:
                 os.makedirs(hourly_dir, exist_ok=True)
                 os.makedirs(report_type_dir, exist_ok=True)
 
-                # --- Save the main 1-hourly file ---
+                # Save the main 1-hourly file
                 hourly_save_path = os.path.join(hourly_dir, f"{base_name}_1-hourly{ext}")
                 combined_df.to_csv(hourly_save_path)
                 self.logger.info(f"Successfully saved combined 1-hourly data to: {hourly_save_path}")
 
-                # --- Save the intermediate report-type files ---
+                # Save the intermediate report-type files
                 metar_path = os.path.join(report_type_dir, f"{base_name}_metar{ext}")
                 synop_path = os.path.join(report_type_dir, f"{base_name}_synop{ext}")
                 
@@ -644,6 +697,18 @@ class GHCNhProcessor:
         return combined_df, metar_df, synop_df
 
     def get_ghcn_id_from_icao(self, icao_code: str) -> Optional[str]:
+        """
+        Retrieves a GHCN_ID for a given ICAO code.
+
+        Args:
+            icao_code (str): The ICAO airport code to look up.
+
+        Returns:
+            Optional[str]: The matching GHCN_ID, or None if not found.
+        """
         result = self.find_stations(has_icao=True)
+        if result is None:
+            # The find_stations method will have already logged the reason.
+            return None
         match = result[result['ICAO'] == icao_code]
         return match.index[0] if not match.empty else None
