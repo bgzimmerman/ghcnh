@@ -163,33 +163,129 @@ class GHCNhProcessor:
             'ICAO': 'station_code'
         }
 
-    def _setup_logger(self, log_level: int) -> None:
-        """Initializes a logger for the class instance."""
-        self.logger = logging.getLogger(self.__class__.__name__)
-        if not self.logger.handlers:
-            self.logger.setLevel(log_level)
-            handler = logging.StreamHandler(sys.stdout)
-            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-            handler.setFormatter(formatter)
-            self.logger.addHandler(handler)
+    # --- High-Level Public Methods ---
 
-    def _download_station_list_if_missing(self) -> None:
-        """Ensures the station list is available locally using the downloader."""
-        self.downloader.download_station_list(self.station_list_path)
+    def process_to_hourly(self, station_id: str, years: Union[int, List[int]], qc_level: str = 'strict', save_path: Optional[str] = None, resample_frequencies: Optional[List[str]] = None) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], Optional[pd.DataFrame]]:
+        """
+        Downloads, cleans, and processes data into a final hourly time series.
 
-    def _load_station_metadata(self) -> Optional[pd.DataFrame]:
-        """Loads and preprocesses the station list file."""
-        if not os.path.exists(self.station_list_path):
-            self.logger.error(f"Station metadata file not found at {self.station_list_path}")
+        This high-level method orchestrates the entire pipeline from download to
+        final processed output. If a save_path is provided, it also generates
+        and saves resampled datasets for all standard frequencies by default.
+
+        Args:
+            station_id (str): The GHCN_ID of the station.
+            years (int or list of int): A single year or a list of years to process.
+            qc_level (str): The quality control level.
+            save_path (str, optional): If provided, the final hourly DataFrame and any
+                                       resampled DataFrames will be saved.
+            resample_frequencies (list, optional): A list of frequencies to resample to.
+                                                   Defaults to all standard frequencies.
+                                                   Pass an empty list `[]` to disable resampling.
+
+        Returns:
+            A tuple containing the final combined hourly data, the METAR-only data,
+            and the SYNOP-only data, or (None, None, None) on failure.
+        """
+        if resample_frequencies is None:
+            resample_frequencies = [
+                '3-hourly', '6-hourly', '12-hourly', 'daily', 
+                'weekly', 'monthly', 'seasonal'
+            ]
+
+        raw_df = self.get_processed_years_data(station_id, years)
+        if raw_df is None:
+            self.logger.error(f"No data found for station {station_id}. Aborting.")
+            return None, None, None
+
+        combined_df, metar_df, synop_df = self._create_hourly_timeseries(raw_df)
+
+        if save_path:
+            try:
+                output_dir = os.path.dirname(save_path)
+                base_name, ext = os.path.splitext(os.path.basename(save_path))
+
+                # Create subdirectories for organized output
+                hourly_dir = os.path.join(output_dir, '1-hourly')
+                report_type_dir = os.path.join(output_dir, 'raw-report-type')
+                os.makedirs(hourly_dir, exist_ok=True)
+                os.makedirs(report_type_dir, exist_ok=True)
+
+                # Save the main 1-hourly file
+                hourly_save_path = os.path.join(hourly_dir, f"{base_name}_1-hourly{ext}")
+                combined_df.to_csv(hourly_save_path)
+                self.logger.info(f"Successfully saved combined 1-hourly data to: {hourly_save_path}")
+
+                # Save the intermediate report-type files
+                metar_path = os.path.join(report_type_dir, f"{base_name}_metar{ext}")
+                synop_path = os.path.join(report_type_dir, f"{base_name}_synop{ext}")
+                
+                if not metar_df.empty:
+                    metar_df.to_csv(metar_path)
+                    self.logger.info(f"Successfully saved METAR data to: {metar_path}")
+                
+                if not synop_df.empty:
+                    synop_df.to_csv(synop_path)
+                    self.logger.info(f"Successfully saved SYNOP data to: {synop_path}")
+
+            except Exception as e:
+                self.logger.error(f"Error during file saving: {e}")
+
+        # Perform and save additional resampling if requested
+        if save_path and resample_frequencies:
+            self._save_resampled_frequencies(combined_df, save_path, resample_frequencies)
+
+        return combined_df, metar_df, synop_df
+
+    def get_station_years_data(self, station_id: str, years: Union[int, List[int]], qc_level: str = 'strict', save_path: Optional[str] = None) -> Optional[pd.DataFrame]:
+        """
+        High-level method to retrieve and process data for one or more years.
+
+        This is the primary method for fetching year-based data. It orchestrates
+        the download and quality control processes.
+
+        Args:
+            station_id (str): The GHCN_ID of the station.
+            years (int or list of int): A single year or a list of years to process.
+            qc_level (str): The quality control level.
+            save_path (str, optional): If provided, the final DataFrame will be saved
+                                       to this path as a CSV file.
+
+        Returns:
+            Optional[pd.DataFrame]: A cleaned DataFrame for the specified years.
+        """
+        if isinstance(years, int):
+            years = [years]
+
+        df = self.get_processed_years_data(station_id, years)
+        if df is None:
+            self.logger.error(f"Failed to download any data for station {station_id}, cannot proceed.")
             return None
-            
-        try:
-            df = pd.read_csv(self.station_list_path)
-            df.set_index('GHCN_ID', inplace=True)
-            return df
-        except Exception as e:
-            self.logger.error(f"Failed to load or process station metadata from {self.station_list_path}: {e}")
-            return None
+
+        df_qc = self.quality_control(df, level=qc_level)
+        
+        core_cols = ['Station_ID', 'Station_name', 'Latitude', 'Longitude', 'Elevation', 'remarks']
+        cleaned_data_cols = self._get_variables_from_df(df)
+        
+        final_cols = core_cols + cleaned_data_cols
+        final_cols_exist = [col for col in final_cols if col in df_qc.columns]
+        
+        final_df = df_qc[final_cols_exist]
+
+        if save_path:
+            try:
+                output_dir = os.path.dirname(save_path)
+                if output_dir:
+                    os.makedirs(output_dir, exist_ok=True)
+                
+                final_df.to_csv(save_path)
+                self.logger.info(f"Data successfully saved to {save_path}")
+            except Exception as e:
+                self.logger.error(f"Error: Failed to save data to {save_path}: {e}")
+
+        return final_df
+
+    # --- Public Utility Methods ---
 
     def find_stations(self, has_icao: Optional[bool] = None, has_wmo_id: Optional[bool] = None, state: Optional[str] = None, name_contains: Optional[str] = None) -> Optional[pd.DataFrame]:
         """
@@ -240,60 +336,53 @@ class GHCNhProcessor:
 
         return filtered_df
 
-    def _read_and_process_parquet(self, file_path: str, station_id: str) -> Optional[pd.DataFrame]:
+    def get_ghcn_id_from_icao(self, icao_code: str) -> Optional[str]:
         """
-        Reads a local parquet file and enriches it with metadata.
+        Retrieves a GHCN_ID for a given ICAO code.
 
         Args:
-            file_path (str): The local path to the parquet file.
-            station_id (str): The GHCN_ID of the station to add to the DataFrame.
+            icao_code (str): The ICAO airport code to look up.
 
         Returns:
-            Optional[pd.DataFrame]: The processed DataFrame, or None on failure.
+            Optional[str]: The matching GHCN_ID, or None if not found.
         """
-        try:
-            df = pd.read_parquet(file_path)
-
-            if 'DATE' in df.columns:
-                df['DATE'] = pd.to_datetime(df['DATE'], utc=True)
-                df.set_index('DATE', inplace=True)
-            
-            df['Station_ID'] = station_id
-            if self.station_metadata is not None and station_id in self.station_metadata.index:
-                station_info = self.station_metadata.loc[station_id]
-                df['Station_name'] = station_info['NAME']
-                df['Latitude'] = station_info['LATITUDE']
-                df['Longitude'] = station_info['LONGITUDE']
-                df['Elevation'] = station_info['ELEVATION']
-                if 'ICAO' in station_info and pd.notna(station_info['ICAO']):
-                    df['ICAO'] = station_info['ICAO']
-            else:
-                self.logger.warning(f"station {station_id} not found in metadata.")
-                
-            return df
-            
-        except Exception as e:
-            self.logger.error(f"Failed to read or process parquet file {file_path}: {e}")
+        result = self.find_stations(has_icao=True)
+        if result is None:
+            # The find_stations method will have already logged the reason.
             return None
+        match = result[result['ICAO'] == icao_code]
+        return match.index[0] if not match.empty else None
 
-    def _get_processed_year_data(self, station_id: str, year: int) -> Optional[pd.DataFrame]:
+    def get_variable_details(self, df: pd.DataFrame, variable_name: str) -> pd.DataFrame:
         """
-        Internal helper to get a single year of data.
+        Extracts all related columns for a single variable from a DataFrame.
 
-        This method orchestrates the download (via the downloader) and the subsequent
-        reading and processing of the local file.
+        This helper function is useful for inspecting all the metadata associated
+        with a specific variable (e.g., its value, quality code, source code).
 
         Args:
-            station_id (str): The GHCN_ID of the station.
-            year (int): The year to get data for.
+            df (pd.DataFrame): The DataFrame containing the raw station data.
+            variable_name (str): The core name of the variable (e.g., 'temperature').
 
         Returns:
-            Optional[pd.DataFrame]: The processed DataFrame, or None on failure.
+            pd.DataFrame: A DataFrame containing only the columns related to the
+                          specified variable, or an empty DataFrame if none are found.
         """
-        file_path = self.downloader.get_year_data_path(station_id, year)
-        if file_path:
-            return self._read_and_process_parquet(file_path, station_id)
-        return None
+        related_cols = [variable_name]
+        suffixes = ['_Measurement_Code', '_Quality_Code', '_Report_Type', '_Source_Code', '_Source_Station_ID']
+
+        for suffix in suffixes:
+            related_cols.append(f"{variable_name}{suffix}")
+
+        existing_cols = [col for col in related_cols if col in df.columns]
+
+        if not existing_cols:
+            self.logger.warning(f"No columns found for variable '{variable_name}'.")
+            return pd.DataFrame()
+
+        return df[existing_cols].copy()
+
+    # --- Mid-Level Data Acquisition & QC ---
 
     def get_processed_years_data(self, station_id: str, years: Union[int, List[int]]) -> Optional[pd.DataFrame]:
         """
@@ -331,53 +420,6 @@ class GHCNhProcessor:
 
         # Sort by the 'DATE' index to ensure the combined dataframe is in chronological order
         return pd.concat(all_years_dfs).sort_index()
-
-    def _get_variables_from_df(self, df: pd.DataFrame) -> List[str]:
-        """
-        Identifies core meteorological variables from the DataFrame columns.
-
-        This method excludes 'remarks' as it is a text-based field not suitable
-        for numerical quality control.
-
-        Args:
-            df (pd.DataFrame): The input DataFrame.
-
-        Returns:
-            List[str]: A list of variable names found in the DataFrame.
-        """
-        qc_cols = [col for col in df.columns if col.endswith('_Quality_Code')]
-        variables = [col.replace('_Quality_Code', '') for col in qc_cols]
-        # Remarks are text-based metar reports - TODO: add python metar library to parse these
-        return [var for var in variables if var != 'remarks']
-
-    def get_variable_details(self, df: pd.DataFrame, variable_name: str) -> pd.DataFrame:
-        """
-        Extracts all related columns for a single variable from a DataFrame.
-
-        This helper function is useful for inspecting all the metadata associated
-        with a specific variable (e.g., its value, quality code, source code).
-
-        Args:
-            df (pd.DataFrame): The DataFrame containing the raw station data.
-            variable_name (str): The core name of the variable (e.g., 'temperature').
-
-        Returns:
-            pd.DataFrame: A DataFrame containing only the columns related to the
-                          specified variable, or an empty DataFrame if none are found.
-        """
-        related_cols = [variable_name]
-        suffixes = ['_Measurement_Code', '_Quality_Code', '_Report_Type', '_Source_Code', '_Source_Station_ID']
-
-        for suffix in suffixes:
-            related_cols.append(f"{variable_name}{suffix}")
-
-        existing_cols = [col for col in related_cols if col in df.columns]
-
-        if not existing_cols:
-            self.logger.warning(f"No columns found for variable '{variable_name}'.")
-            return pd.DataFrame()
-
-        return df[existing_cols].copy()
 
     def quality_control(self, df: pd.DataFrame, level: str = 'strict') -> pd.DataFrame:
         """
@@ -426,123 +468,9 @@ class GHCNhProcessor:
             
         return df_qc
 
-    def get_station_years_data(self, station_id: str, years: Union[int, List[int]], qc_level: str = 'strict', save_path: Optional[str] = None) -> Optional[pd.DataFrame]:
-        """
-        High-level method to retrieve and process data for one or more years.
+    # --- Internal Helper Methods ---
 
-        This is the primary method for fetching year-based data. It orchestrates
-        the download and quality control processes.
-
-        Args:
-            station_id (str): The GHCN_ID of the station.
-            years (int or list of int): A single year or a list of years to process.
-            qc_level (str): The quality control level.
-            save_path (str, optional): If provided, the final DataFrame will be saved
-                                       to this path as a CSV file.
-
-        Returns:
-            Optional[pd.DataFrame]: A cleaned DataFrame for the specified years.
-        """
-        if isinstance(years, int):
-            years = [years]
-
-        df = self.get_processed_years_data(station_id, years)
-        if df is None:
-            self.logger.error(f"Failed to download any data for station {station_id}, cannot proceed.")
-            return None
-
-        df_qc = self.quality_control(df, level=qc_level)
-        
-        core_cols = ['Station_ID', 'Station_name', 'Latitude', 'Longitude', 'Elevation', 'remarks']
-        cleaned_data_cols = self._get_variables_from_df(df)
-        
-        final_cols = core_cols + cleaned_data_cols
-        final_cols_exist = [col for col in final_cols if col in df_qc.columns]
-        
-        final_df = df_qc[final_cols_exist]
-
-        if save_path:
-            try:
-                output_dir = os.path.dirname(save_path)
-                if output_dir:
-                    os.makedirs(output_dir, exist_ok=True)
-                
-                final_df.to_csv(save_path)
-                self.logger.info(f"Data successfully saved to {save_path}")
-            except Exception as e:
-                self.logger.error(f"Error: Failed to save data to {save_path}: {e}")
-
-        return final_df
-
-    def _resample_and_save(self, df: pd.DataFrame, base_save_path: str, frequencies: List[str]) -> None:
-        """
-        Resamples a DataFrame to specified frequencies and saves them to subdirectories.
-
-        Args:
-            df (pd.DataFrame): The DataFrame to resample (should be 1-hourly).
-            base_save_path (str): The base path for saving files, used to derive directory and filename.
-            frequencies (List[str]): A list of frequency strings (e.g., '3-hourly', 'daily').
-        """
-        freq_map = {
-            '3-hourly': '3h', '6-hourly': '6h', '12-hourly': '12h',
-            'daily': 'D', 'weekly': 'W', 'monthly': 'MS', 'seasonal': 'QS'
-        }
-
-        output_dir = os.path.dirname(base_save_path)
-        base_name, ext = os.path.splitext(os.path.basename(base_save_path))
-
-        # Identify static metadata columns and extract their values
-        final_static_cols = list(self.static_metadata_rename_dict.values())
-        final_static_cols.extend([
-            col for col in self.static_metadata_columns
-            if col not in self.static_metadata_rename_dict
-        ])
-        present_static_cols = [col for col in final_static_cols if col in df.columns]
-        static_data = {}
-        if not df.empty and present_static_cols:
-            first_valid_row = df[present_static_cols].dropna()
-            if not first_valid_row.empty:
-                static_data = first_valid_row.iloc[0].to_dict()
-
-        # Isolate numeric columns for aggregation, excluding coordinates
-        numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
-        coord_cols = ['Latitude', 'Longitude', 'Elevation']
-        numeric_cols = [col for col in numeric_cols if col not in coord_cols]
-
-        if not numeric_cols:
-            self.logger.warning("No numeric data columns found to resample.")
-            return
-
-        agg_dict = {col: 'mean' for col in numeric_cols}
-        if 'precipitation' in agg_dict:
-            agg_dict['precipitation'] = 'sum'
-
-        for freq_name in frequencies:
-            pd_freq = freq_map.get(freq_name)
-            if not pd_freq:
-                self.logger.warning(f"Unknown frequency '{freq_name}' requested. Skipping.")
-                continue
-
-            try:
-                # Perform resampling
-                resampled_df = df[numeric_cols].resample(pd_freq).agg(agg_dict)
-
-                # Add static metadata back to the resampled DataFrame
-                for col, val in static_data.items():
-                    resampled_df[col] = val
-
-                # Create subdirectory and new save path
-                freq_dir = os.path.join(output_dir, freq_name)
-                os.makedirs(freq_dir, exist_ok=True)
-                new_save_path = os.path.join(freq_dir, f"{base_name}_{freq_name}{ext}")
-
-                resampled_df.to_csv(new_save_path)
-                self.logger.info(f"Successfully saved {freq_name} resampled data to: {new_save_path}")
-
-            except Exception as e:
-                self.logger.error(f"Error: Failed to resample or save for frequency '{freq_name}': {e}")
-
-    def _resample_and_combine(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    def _create_hourly_timeseries(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Internal helper to process raw data into a clean, hourly time series.
 
@@ -623,92 +551,172 @@ class GHCNhProcessor:
             hourly_synop.rename(columns=self.static_metadata_rename_dict, inplace=True)
 
         return combined_df, hourly_metar, hourly_synop
-        
-    def process_to_hourly(self, station_id: str, years: Union[int, List[int]], qc_level: str = 'strict', save_path: Optional[str] = None, resample_frequencies: Optional[List[str]] = None) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], Optional[pd.DataFrame]]:
-        """
-        Downloads, cleans, and processes data into a final hourly time series.
 
-        This high-level method orchestrates the entire pipeline from download to
-        final processed output. If a save_path is provided, it also generates
-        and saves resampled datasets for all standard frequencies by default.
+    def _save_resampled_frequencies(self, df: pd.DataFrame, base_save_path: str, frequencies: List[str]) -> None:
+        """
+        Resamples a DataFrame to specified frequencies and saves them to subdirectories.
+
+        Args:
+            df (pd.DataFrame): The DataFrame to resample (should be 1-hourly).
+            base_save_path (str): The base path for saving files, used to derive directory and filename.
+            frequencies (List[str]): A list of frequency strings (e.g., '3-hourly', 'daily').
+        """
+        freq_map = {
+            '3-hourly': '3h', '6-hourly': '6h', '12-hourly': '12h',
+            'daily': 'D', 'weekly': 'W', 'monthly': 'MS', 'seasonal': 'QS'
+        }
+
+        output_dir = os.path.dirname(base_save_path)
+        base_name, ext = os.path.splitext(os.path.basename(base_save_path))
+
+        # Identify static metadata columns and extract their values
+        final_static_cols = list(self.static_metadata_rename_dict.values())
+        final_static_cols.extend([
+            col for col in self.static_metadata_columns
+            if col not in self.static_metadata_rename_dict
+        ])
+        present_static_cols = [col for col in final_static_cols if col in df.columns]
+        static_data = {}
+        if not df.empty and present_static_cols:
+            first_valid_row = df[present_static_cols].dropna()
+            if not first_valid_row.empty:
+                static_data = first_valid_row.iloc[0].to_dict()
+
+        # Isolate numeric columns for aggregation, excluding coordinates
+        numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
+        coord_cols = ['Latitude', 'Longitude', 'Elevation']
+        numeric_cols = [col for col in numeric_cols if col not in coord_cols]
+
+        if not numeric_cols:
+            self.logger.warning("No numeric data columns found to resample.")
+            return
+
+        agg_dict = {col: 'mean' for col in numeric_cols}
+        if 'precipitation' in agg_dict:
+            agg_dict['precipitation'] = 'sum'
+
+        for freq_name in frequencies:
+            pd_freq = freq_map.get(freq_name)
+            if not pd_freq:
+                self.logger.warning(f"Unknown frequency '{freq_name}' requested. Skipping.")
+                continue
+
+            try:
+                # Perform resampling
+                resampled_df = df[numeric_cols].resample(pd_freq).agg(agg_dict)
+
+                # Add static metadata back to the resampled DataFrame
+                for col, val in static_data.items():
+                    resampled_df[col] = val
+
+                # Create subdirectory and new save path
+                freq_dir = os.path.join(output_dir, freq_name)
+                os.makedirs(freq_dir, exist_ok=True)
+                new_save_path = os.path.join(freq_dir, f"{base_name}_{freq_name}{ext}")
+
+                resampled_df.to_csv(new_save_path)
+                self.logger.info(f"Successfully saved {freq_name} resampled data to: {new_save_path}")
+
+            except Exception as e:
+                self.logger.error(f"Error: Failed to resample or save for frequency '{freq_name}': {e}")
+
+    def _get_processed_year_data(self, station_id: str, year: int) -> Optional[pd.DataFrame]:
+        """
+        Internal helper to get a single year of data.
+
+        This method orchestrates the download (via the downloader) and the subsequent
+        reading and processing of the local file.
 
         Args:
             station_id (str): The GHCN_ID of the station.
-            years (int or list of int): A single year or a list of years to process.
-            qc_level (str): The quality control level.
-            save_path (str, optional): If provided, the final hourly DataFrame and any
-                                       resampled DataFrames will be saved.
-            resample_frequencies (list, optional): A list of frequencies to resample to.
-                                                   Defaults to all standard frequencies.
-                                                   Pass an empty list `[]` to disable resampling.
+            year (int): The year to get data for.
 
         Returns:
-            A tuple containing the final combined hourly data, the METAR-only data,
-            and the SYNOP-only data, or (None, None, None) on failure.
+            Optional[pd.DataFrame]: The processed DataFrame, or None on failure.
         """
-        if resample_frequencies is None:
-            resample_frequencies = [
-                '3-hourly', '6-hourly', '12-hourly', 'daily', 
-                'weekly', 'monthly', 'seasonal'
-            ]
+        file_path = self.downloader.get_year_data_path(station_id, year)
+        if file_path:
+            return self._read_and_process_parquet(file_path, station_id)
+        return None
 
-        raw_df = self.get_processed_years_data(station_id, years)
-        if raw_df is None:
-            self.logger.error(f"No data found for station {station_id}. Aborting.")
-            return None, None, None
-
-        combined_df, metar_df, synop_df = self._resample_and_combine(raw_df)
-
-        if save_path:
-            try:
-                output_dir = os.path.dirname(save_path)
-                base_name, ext = os.path.splitext(os.path.basename(save_path))
-
-                # Create subdirectories for organized output
-                hourly_dir = os.path.join(output_dir, '1-hourly')
-                report_type_dir = os.path.join(output_dir, 'raw-report-type')
-                os.makedirs(hourly_dir, exist_ok=True)
-                os.makedirs(report_type_dir, exist_ok=True)
-
-                # Save the main 1-hourly file
-                hourly_save_path = os.path.join(hourly_dir, f"{base_name}_1-hourly{ext}")
-                combined_df.to_csv(hourly_save_path)
-                self.logger.info(f"Successfully saved combined 1-hourly data to: {hourly_save_path}")
-
-                # Save the intermediate report-type files
-                metar_path = os.path.join(report_type_dir, f"{base_name}_metar{ext}")
-                synop_path = os.path.join(report_type_dir, f"{base_name}_synop{ext}")
-                
-                if not metar_df.empty:
-                    metar_df.to_csv(metar_path)
-                    self.logger.info(f"Successfully saved METAR data to: {metar_path}")
-                
-                if not synop_df.empty:
-                    synop_df.to_csv(synop_path)
-                    self.logger.info(f"Successfully saved SYNOP data to: {synop_path}")
-
-            except Exception as e:
-                self.logger.error(f"Error during file saving: {e}")
-
-        # Perform and save additional resampling if requested
-        if save_path and resample_frequencies:
-            self._resample_and_save(combined_df, save_path, resample_frequencies)
-
-        return combined_df, metar_df, synop_df
-
-    def get_ghcn_id_from_icao(self, icao_code: str) -> Optional[str]:
+    def _read_and_process_parquet(self, file_path: str, station_id: str) -> Optional[pd.DataFrame]:
         """
-        Retrieves a GHCN_ID for a given ICAO code.
+        Reads a local parquet file and enriches it with metadata.
 
         Args:
-            icao_code (str): The ICAO airport code to look up.
+            file_path (str): The local path to the parquet file.
+            station_id (str): The GHCN_ID of the station to add to the DataFrame.
 
         Returns:
-            Optional[str]: The matching GHCN_ID, or None if not found.
+            Optional[pd.DataFrame]: The processed DataFrame, or None on failure.
         """
-        result = self.find_stations(has_icao=True)
-        if result is None:
-            # The find_stations method will have already logged the reason.
+        try:
+            df = pd.read_parquet(file_path)
+
+            if 'DATE' in df.columns:
+                df['DATE'] = pd.to_datetime(df['DATE'], utc=True)
+                df.set_index('DATE', inplace=True)
+            
+            df['Station_ID'] = station_id
+            if self.station_metadata is not None and station_id in self.station_metadata.index:
+                station_info = self.station_metadata.loc[station_id]
+                df['Station_name'] = station_info['NAME']
+                df['Latitude'] = station_info['LATITUDE']
+                df['Longitude'] = station_info['LONGITUDE']
+                df['Elevation'] = station_info['ELEVATION']
+                if 'ICAO' in station_info and pd.notna(station_info['ICAO']):
+                    df['ICAO'] = station_info['ICAO']
+            else:
+                self.logger.warning(f"station {station_id} not found in metadata.")
+                
+            return df
+            
+        except Exception as e:
+            self.logger.error(f"Failed to read or process parquet file {file_path}: {e}")
             return None
-        match = result[result['ICAO'] == icao_code]
-        return match.index[0] if not match.empty else None
+
+    def _get_variables_from_df(self, df: pd.DataFrame) -> List[str]:
+        """
+        Identifies core meteorological variables from the DataFrame columns.
+
+        This method excludes 'remarks' as it is a text-based field not suitable
+        for numerical quality control.
+
+        Args:
+            df (pd.DataFrame): The input DataFrame.
+
+        Returns:
+            List[str]: A list of variable names found in the DataFrame.
+        """
+        qc_cols = [col for col in df.columns if col.endswith('_Quality_Code')]
+        variables = [col.replace('_Quality_Code', '') for col in qc_cols]
+        # Remarks are text-based metar reports - TODO: add python metar library to parse these
+        return [var for var in variables if var != 'remarks']
+
+    def _setup_logger(self, log_level: int) -> None:
+        """Initializes a logger for the class instance."""
+        self.logger = logging.getLogger(self.__class__.__name__)
+        if not self.logger.handlers:
+            self.logger.setLevel(log_level)
+            handler = logging.StreamHandler(sys.stdout)
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            handler.setFormatter(formatter)
+            self.logger.addHandler(handler)
+
+    def _download_station_list_if_missing(self) -> None:
+        """Ensures the station list is available locally using the downloader."""
+        self.downloader.download_station_list(self.station_list_path)
+
+    def _load_station_metadata(self) -> Optional[pd.DataFrame]:
+        """Loads and preprocesses the station list file."""
+        if not os.path.exists(self.station_list_path):
+            self.logger.error(f"Station metadata file not found at {self.station_list_path}")
+            return None
+            
+        try:
+            df = pd.read_csv(self.station_list_path)
+            df.set_index('GHCN_ID', inplace=True)
+            return df
+        except Exception as e:
+            self.logger.error(f"Failed to load or process station metadata from {self.station_list_path}: {e}")
+            return None
