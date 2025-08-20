@@ -60,6 +60,19 @@ class GHCNhProcessor:
                 'o'   # Outlier
             ]
         }
+        self.core_variables = [
+            'temperature', 'dew_point_temperature', 'station_level_pressure', 
+            'sea_level_pressure', 'wind_direction', 'wind_speed', 'wind_gust', 
+            'precipitation', 'relative_humidity', 'wet_bulb_temperature'
+        ]
+        self.static_metadata_columns = [
+            'Station_ID', 'Station_name', 'Latitude', 
+            'Longitude', 'Elevation', 'ICAO'
+        ]
+        self.static_metadata_rename_dict = {
+            'Station_ID': 'GHCN_ID', 
+            'ICAO': 'station_code'
+        }
 
     def _download_station_list_if_missing(self):
         """Checks if the station list exists and downloads it if not."""
@@ -198,6 +211,8 @@ class GHCNhProcessor:
                 df['Latitude'] = station_info['LATITUDE']
                 df['Longitude'] = station_info['LONGITUDE']
                 df['Elevation'] = station_info['ELEVATION']
+                if 'ICAO' in station_info and pd.notna(station_info['ICAO']):
+                    df['ICAO'] = station_info['ICAO']
             else:
                 print(f"Warning: station {station_id} not found in metadata.", file=sys.stderr)
                 
@@ -391,7 +406,218 @@ class GHCNhProcessor:
                 print(f"Error: Failed to save data to {save_path}: {e}", file=sys.stderr)
 
         return final_df
+
+    def _resample_and_save(self, df, base_save_path, frequencies):
+        """
+        Resamples a DataFrame to specified frequencies and saves them to subdirectories.
+        """
+        freq_map = {
+            '3-hourly': '3h', '6-hourly': '6h', '12-hourly': '12h',
+            'daily': 'D', 'weekly': 'W', 'monthly': 'MS', 'seasonal': 'QS'
+        }
+
+        output_dir = os.path.dirname(base_save_path)
+        base_name, ext = os.path.splitext(os.path.basename(base_save_path))
+
+        # Identify static metadata columns and extract their values
+        final_static_cols = list(self.static_metadata_rename_dict.values())
+        final_static_cols.extend([
+            col for col in self.static_metadata_columns
+            if col not in self.static_metadata_rename_dict
+        ])
+        present_static_cols = [col for col in final_static_cols if col in df.columns]
+        static_data = {}
+        if not df.empty and present_static_cols:
+            # Get the first valid value for each static column
+            first_valid_row = df[present_static_cols].dropna()
+            if not first_valid_row.empty:
+                static_data = first_valid_row.iloc[0].to_dict()
+
+        numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
+        # Ensure we don't try to aggregate coordinate columns
+        coord_cols = ['Latitude', 'Longitude', 'Elevation']
+        numeric_cols = [col for col in numeric_cols if col not in coord_cols]
+
+        if not numeric_cols:
+            print("Warning: No numeric data columns found to resample.", file=sys.stderr)
+            return
+
+        agg_dict = {col: 'mean' for col in numeric_cols}
+        if 'precipitation' in agg_dict:
+            agg_dict['precipitation'] = 'sum'
+
+        for freq_name in frequencies:
+            pd_freq = freq_map.get(freq_name)
+            if not pd_freq:
+                print(f"Warning: Unknown frequency '{freq_name}' requested. Skipping.", file=sys.stderr)
+                continue
+
+            try:
+                # Perform resampling
+                resampled_df = df[numeric_cols].resample(pd_freq).agg(agg_dict)
+
+                # Add static metadata back to the resampled DataFrame
+                for col, val in static_data.items():
+                    resampled_df[col] = val
+
+                # Create subdirectory and new save path
+                freq_dir = os.path.join(output_dir, freq_name)
+                os.makedirs(freq_dir, exist_ok=True)
+                new_save_path = os.path.join(freq_dir, f"{base_name}_{freq_name}{ext}")
+
+                resampled_df.to_csv(new_save_path)
+                print(f"Successfully saved {freq_name} resampled data to: {new_save_path}")
+
+            except Exception as e:
+                print(f"Error: Failed to resample or save for frequency '{freq_name}': {e}", file=sys.stderr)
+
+    def _resample_and_combine(self, df):
+        """
+        Internal helper to process raw data into a clean, hourly time series.
+        """
+        # Step A: Filter for core variables and their metadata
+        cols_to_keep = self.core_variables[:]
+        for var in self.core_variables:
+            cols_to_keep.extend([f"{var}_Quality_Code", f"{var}_Report_Type"])
         
+        # Also keep station metadata
+        cols_to_keep.extend(self.static_metadata_columns)
+        
+        df_filtered = df[[col for col in cols_to_keep if col in df.columns]].copy()
+
+        # Step B: Apply Quality Control (silently for this pipeline)
+        df_qc = self.quality_control(df_filtered, level='strict', verbose=False)
+
+        # Step C: Prioritize and Separate Data
+        # Use temperature's report type as the primary one
+        if 'temperature_Report_Type' in df_qc.columns:
+            df_qc['Report_Type'] = df_qc['temperature_Report_Type']
+        else:
+            # Fallback if temperature report type is not available
+            df_qc['Report_Type'] = 'UNKNOWN'
+
+        metar_reports = ['FM15-METAR', 'FM16-SPECI']
+        synop_reports = ['FM12-SYNOP']
+
+        df_metar = df_qc[df_qc['Report_Type'].isin(metar_reports)]
+        df_synop = df_qc[df_qc['Report_Type'].isin(synop_reports)]
+        
+        # Step D: Define Aggregations and Resample
+        agg_rules = {
+            'temperature': 'mean', 'dew_point_temperature': 'mean', 'station_level_pressure': 'mean',
+            'sea_level_pressure': 'mean', 'wind_speed': 'mean', 'wind_gust': 'mean',
+            'relative_humidity': 'mean', 'wet_bulb_temperature': 'mean',
+            'wind_direction': 'last', 'precipitation': 'last' # Use .last() for precip from METARs
+        }
+        
+        # Filter rules for columns that actually exist in the dataframe
+        agg_rules_filtered = {k: v for k, v in agg_rules.items() if k in df_qc.columns}
+
+        hourly_metar = df_metar.resample('1h').agg(agg_rules_filtered) if not df_metar.empty else pd.DataFrame()
+        hourly_synop = df_synop.resample('1h').agg(agg_rules_filtered) if not df_synop.empty else pd.DataFrame()
+
+        # Step E: Combine with priority
+        # Start with METAR, then fill missing with SYNOP
+        combined_df = hourly_metar.combine_first(hourly_synop)
+
+        # Add back station metadata, which is static
+        static_data = {}
+        for col in self.static_metadata_columns:
+            if col in df_qc.columns and not df_qc[col].empty:
+                # Get the first valid value for the static column
+                first_valid = df_qc[col].dropna().iloc[0] if not df_qc[col].dropna().empty else None
+                if first_valid is not None:
+                    static_data[col] = first_valid
+
+        for col, val in static_data.items():
+            combined_df[col] = val
+            if not hourly_metar.empty:
+                hourly_metar[col] = val
+            if not hourly_synop.empty:
+                hourly_synop[col] = val
+
+        # Rename columns to match user's preference
+        rename_dict = {'Station_ID': 'GHCN_ID', 'ICAO': 'station_code'}
+        combined_df.rename(columns=rename_dict, inplace=True)
+        if not hourly_metar.empty:
+            hourly_metar.rename(columns=rename_dict, inplace=True)
+        if not hourly_synop.empty:
+            hourly_synop.rename(columns=rename_dict, inplace=True)
+
+        return combined_df, hourly_metar, hourly_synop
+        
+    def process_to_hourly(self, station_id, years, qc_level='strict', save_path=None, resample_frequencies=None):
+        """
+        Downloads, cleans, and processes data into a final hourly time series,
+        intelligently combining different report types. If a save_path is provided,
+        this function also generates and saves resampled datasets for all standard
+        frequencies by default.
+
+        Args:
+            station_id (str): The GHCN_ID of the station.
+            years (int or list of int): A single year or a list of years to process.
+            qc_level (str): The quality control level.
+            save_path (str, optional): If provided, the final hourly DataFrame and any
+                                       resampled DataFrames will be saved. Defaults to None.
+            resample_frequencies (list, optional): A list of frequencies to resample to.
+                                                   Defaults to all available frequencies.
+                                                   To disable resampling when saving, pass an empty list: [].
+        """
+        # If no frequencies are specified, default to all of them.
+        if resample_frequencies is None:
+            resample_frequencies = [
+                '3-hourly', '6-hourly', '12-hourly', 'daily', 
+                'weekly', 'monthly', 'seasonal'
+            ]
+
+        # Download all raw data first
+        raw_df = self.download_years_data(station_id, years)
+        if raw_df is None:
+            print(f"No data found for station {station_id}. Aborting.", file=sys.stderr)
+            return None, None, None
+
+        # Process and resample
+        combined_df, metar_df, synop_df = self._resample_and_combine(raw_df)
+
+        # Save primary and intermediate files if a path is provided
+        if save_path:
+            try:
+                # Deconstruct the user-provided path to get the directory and base filename
+                output_dir = os.path.dirname(save_path)
+                base_name, ext = os.path.splitext(os.path.basename(save_path))
+
+                # Create subdirectories for organized output
+                hourly_dir = os.path.join(output_dir, '1-hourly')
+                report_type_dir = os.path.join(output_dir, 'raw-report-type')
+                os.makedirs(hourly_dir, exist_ok=True)
+                os.makedirs(report_type_dir, exist_ok=True)
+
+                # --- Save the main 1-hourly file ---
+                hourly_save_path = os.path.join(hourly_dir, f"{base_name}_1-hourly{ext}")
+                combined_df.to_csv(hourly_save_path)
+                print(f"Successfully saved combined 1-hourly data to: {hourly_save_path}")
+
+                # --- Save the intermediate report-type files ---
+                metar_path = os.path.join(report_type_dir, f"{base_name}_metar{ext}")
+                synop_path = os.path.join(report_type_dir, f"{base_name}_synop{ext}")
+                
+                if not metar_df.empty:
+                    metar_df.to_csv(metar_path)
+                    print(f"Successfully saved METAR data to: {metar_path}")
+                
+                if not synop_df.empty:
+                    synop_df.to_csv(synop_path)
+                    print(f"Successfully saved SYNOP data to: {synop_path}")
+
+            except Exception as e:
+                print(f"Error during file saving: {e}", file=sys.stderr)
+
+        # Perform and save additional resampling if requested
+        if save_path and resample_frequencies:
+            self._resample_and_save(combined_df, save_path, resample_frequencies)
+
+        return combined_df, metar_df, synop_df
+
     def get_ghcn_id_from_icao(self, icao_code):
         result = self.find_stations(has_icao=True)
         match = result[result['ICAO'] == icao_code]
