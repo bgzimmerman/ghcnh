@@ -216,95 +216,13 @@ class GHCNhProcessor:
         combined_df, metar_df, synop_df = self._create_hourly_timeseries(raw_df)
 
         if save_path:
-            try:
-                output_dir = os.path.dirname(save_path)
-                base_name, ext = os.path.splitext(os.path.basename(save_path))
-
-                # Create subdirectories for organized output
-                hourly_dir = os.path.join(output_dir, '1-hourly')
-                report_type_dir = os.path.join(output_dir, 'raw-report-type')
-                os.makedirs(hourly_dir, exist_ok=True)
-                os.makedirs(report_type_dir, exist_ok=True)
-
-                # Save the main 1-hourly file
-                hourly_save_path = os.path.join(hourly_dir, f"{base_name}_1-hourly{ext}")
-                combined_df.to_csv(hourly_save_path)
-                self.logger.info(f"Successfully saved combined 1-hourly data to: {hourly_save_path}")
-
-                # Save the intermediate report-type files
-                metar_path = os.path.join(report_type_dir, f"{base_name}_metar{ext}")
-                synop_path = os.path.join(report_type_dir, f"{base_name}_synop{ext}")
-                
-                if not metar_df.empty:
-                    metar_df.to_csv(metar_path)
-                    self.logger.info(f"Successfully saved METAR data to: {metar_path}")
-                
-                if not synop_df.empty:
-                    synop_df.to_csv(synop_path)
-                    self.logger.info(f"Successfully saved SYNOP data to: {synop_path}")
-
-            except Exception as e:
-                self.logger.error(f"Error during file saving: {e}")
+            self._save_hourly_outputs(save_path, combined_df, metar_df, synop_df)
 
         # Perform and save additional resampling if requested
         if save_path and resample_frequencies:
             self._save_resampled_frequencies(combined_df, save_path, resample_frequencies)
 
         return combined_df, metar_df, synop_df
-
-    def get_station_years_data(
-        self,
-        station_id: str,
-        years: Union[int, List[int]],
-        qc_level: str = 'strict',
-        save_path: Optional[str] = None,
-    ) -> Optional[pd.DataFrame]:
-        """
-        High-level method to retrieve and process data for one or more years.
-
-        This is the primary method for fetching year-based data. It orchestrates
-        the download and quality control processes.
-
-        Args:
-            station_id (str): The GHCN_ID of the station.
-            years (int or list of int): A single year or a list of years to process.
-            qc_level (str): The quality control level.
-            save_path (str, optional): If provided, the final DataFrame will be saved
-                                       to this path as a CSV file.
-
-        Returns:
-            Optional[pd.DataFrame]: A cleaned DataFrame for the specified years.
-        """
-        if isinstance(years, int):
-            years = [years]
-
-        df = self.get_processed_years_data(station_id, years)
-        if df is None:
-            self.logger.error(f"Failed to download any data for station {station_id}, cannot proceed.")
-            return None
-
-        df_qc = self.quality_control(df, level=qc_level)
-        
-        core_cols = ['Station_ID', 'Station_name', 'Latitude', 'Longitude', 'Elevation', 'remarks']
-        cleaned_data_cols = self._get_variables_from_df(df)
-        
-        final_cols = core_cols + cleaned_data_cols
-        final_cols_exist = [col for col in final_cols if col in df_qc.columns]
-        
-        final_df = df_qc[final_cols_exist]
-
-        if save_path:
-            try:
-                output_dir = os.path.dirname(save_path)
-                if output_dir:
-                    os.makedirs(output_dir, exist_ok=True)
-                
-                final_df.to_csv(save_path)
-                self.logger.info(f"Data successfully saved to {save_path}")
-            except Exception as e:
-                self.logger.error(f"Error: Failed to save data to {save_path}: {e}")
-
-        return final_df
 
     # --- Public Utility Methods ---
 
@@ -586,6 +504,54 @@ class GHCNhProcessor:
             hourly_synop.rename(columns=self.static_metadata_rename_dict, inplace=True)
 
         return combined_df, hourly_metar, hourly_synop
+
+    def _save_hourly_outputs(
+        self,
+        base_save_path: str,
+        combined_df: pd.DataFrame,
+        metar_df: pd.DataFrame,
+        synop_df: pd.DataFrame,
+    ) -> None:
+        """
+        Saves the primary 1-hourly data and intermediate report-type files.
+
+        This helper creates an organized directory structure for the output.
+
+        Args:
+            base_save_path (str): The base path for saving files.
+            combined_df (pd.DataFrame): The main 1-hourly combined DataFrame.
+            metar_df (pd.DataFrame): The intermediate METAR-only DataFrame.
+            synop_df (pd.DataFrame): The intermediate SYNOP-only DataFrame.
+        """
+        try:
+            output_dir = os.path.dirname(base_save_path)
+            base_name, ext = os.path.splitext(os.path.basename(base_save_path))
+
+            # Create subdirectories for organized output
+            hourly_dir = os.path.join(output_dir, '1-hourly')
+            report_type_dir = os.path.join(output_dir, 'raw-report-type')
+            os.makedirs(hourly_dir, exist_ok=True)
+            os.makedirs(report_type_dir, exist_ok=True)
+
+            # Save the main 1-hourly file
+            hourly_save_path = os.path.join(hourly_dir, f"{base_name}_1-hourly{ext}")
+            combined_df.to_csv(hourly_save_path)
+            self.logger.info(f"Successfully saved combined 1-hourly data to: {hourly_save_path}")
+
+            # Save the intermediate report-type files
+            metar_path = os.path.join(report_type_dir, f"{base_name}_metar{ext}")
+            synop_path = os.path.join(report_type_dir, f"{base_name}_synop{ext}")
+            
+            if not metar_df.empty:
+                metar_df.to_csv(metar_path)
+                self.logger.info(f"Successfully saved METAR data to: {metar_path}")
+            
+            if not synop_df.empty:
+                synop_df.to_csv(synop_path)
+                self.logger.info(f"Successfully saved SYNOP data to: {synop_path}")
+
+        except Exception as e:
+            self.logger.error(f"Error during file saving: {e}")
 
     def _save_resampled_frequencies(
         self, df: pd.DataFrame, base_save_path: str, frequencies: List[str]
