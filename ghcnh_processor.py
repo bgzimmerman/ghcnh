@@ -119,6 +119,7 @@ class GHCNhProcessor:
         self,
         station_list_path: str = 'ghcnh-station-list.csv',
         cache_dir: str = '.ghcnh_cache',
+        save_dir: str = './output',
         log_level: int = logging.INFO,
         download_timeout: int = 60,
     ):
@@ -128,6 +129,7 @@ class GHCNhProcessor:
         Args:
             station_list_path (str): Path to the GHCNh station list CSV file.
             cache_dir (str): The directory to use for caching downloaded parquet files.
+            save_dir (str): The directory where output files will be saved.
             log_level (int): The logging level for the logger (e.g., logging.INFO).
             download_timeout (int): Timeout in seconds for network download operations.
         """
@@ -137,6 +139,9 @@ class GHCNhProcessor:
         self.station_list_path = station_list_path
         self._download_station_list_if_missing()
         self.station_metadata = self._load_station_metadata()
+
+        self.save_dir = save_dir
+        os.makedirs(self.save_dir, exist_ok=True)
 
         self.qc_summary = None
 
@@ -178,22 +183,21 @@ class GHCNhProcessor:
         station_id: str,
         years: Union[int, List[int]],
         qc_level: str = 'strict',
-        save_path: Optional[str] = None,
+        save_outputs: bool = True,
         resample_frequencies: Optional[List[str]] = None,
     ) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], Optional[pd.DataFrame]]:
         """
         Downloads, cleans, and processes data into a final hourly time series.
 
         This high-level method orchestrates the entire pipeline from download to
-        final processed output. If a save_path is provided, it also generates
+        final processed output. If `save_outputs` is True, it also generates
         and saves resampled datasets for all standard frequencies by default.
 
         Args:
             station_id (str): The GHCN_ID of the station.
             years (int or list of int): A single year or a list of years to process.
             qc_level (str): The quality control level.
-            save_path (str, optional): If provided, the final hourly DataFrame and any
-                                       resampled DataFrames will be saved.
+            save_outputs (bool): If True, all output files will be saved to the `save_dir`.
             resample_frequencies (list, optional): A list of frequencies to resample to.
                                                    Defaults to all standard frequencies.
                                                    Pass an empty list `[]` to disable resampling.
@@ -208,6 +212,9 @@ class GHCNhProcessor:
                 'weekly', 'monthly', 'seasonal'
             ]
 
+        if isinstance(years, int):
+            years = [years]
+
         raw_df = self.get_processed_years_data(station_id, years)
         if raw_df is None:
             self.logger.error(f"No data found for station {station_id}. Aborting.")
@@ -215,12 +222,17 @@ class GHCNhProcessor:
 
         combined_df, metar_df, synop_df = self._create_hourly_timeseries(raw_df)
 
-        if save_path:
+        if save_outputs:
+            start_year = min(years)
+            end_year = max(years)
+            year_str = f"{start_year}" if start_year == end_year else f"{start_year}-{end_year}"
+            base_filename = f"{station_id}_{year_str}.csv"
+            save_path = os.path.join(self.save_dir, base_filename)
+            
             self._save_hourly_outputs(save_path, combined_df, metar_df, synop_df)
 
-        # Perform and save additional resampling if requested
-        if save_path and resample_frequencies:
-            self._save_resampled_frequencies(combined_df, save_path, resample_frequencies)
+            if resample_frequencies:
+                self._save_resampled_frequencies(combined_df, save_path, resample_frequencies)
 
         return combined_df, metar_df, synop_df
 
