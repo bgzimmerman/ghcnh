@@ -31,8 +31,8 @@ from ghcnh_processor import GHCNhProcessor
 # Initialize the processor
 processor = GHCNhProcessor(
     station_list_path='ghcnh-station-list.csv',
-    cache_dir='.ghcnh_cache',
-    save_dir='./output', # Where all output files will be saved
+    cache_dir='/scratch/qws-data/csv/.ghcnh_cache',
+    save_dir='/scratch/qws-data/csv/ghcnh_examples', # Where all output files will be saved
     log_level=logging.INFO,
     download_timeout=60
 )
@@ -50,10 +50,10 @@ if not tx_airports.empty:
     print("Found Texas airports:")
     print(tx_airports.head())
     # Get the ID of a specific station (Houston Intercontinental)
-    station_id = processor.get_ghcn_id_from_icao('KIAH')
+    station_id = processor.get_ghcn_id_from_icao('KHOU')
 else:
     print("No Texas airports found in the station list.")
-    station_id = 'USW00012960' # Fallback to a known station
+    station_id = 'USW00012918' # Fallback to a known station
 ```
 
 ### 3. Processing Data and Getting a Summary
@@ -95,7 +95,7 @@ from ghcnh_processor import GHCNPostProcessor
 if summary_df is not None:
     post_processor = GHCNPostProcessor(
         summary_df=summary_df,
-        data_dir='./output'
+        data_dir='/scratch/qws-data/csv/ghcnh_examples'
     )
     # Start your custom analysis
     # post_processor.example_analysis_method(station_id)
