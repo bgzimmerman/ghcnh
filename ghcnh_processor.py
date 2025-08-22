@@ -494,7 +494,7 @@ class GHCNhProcessor:
                         if not df.empty:
                             for var in self.core_variables:
                                 if var in df.columns:
-                                    completeness = (df[var].notna().sum() / len(df)) * 100
+                                    completeness = (np.isfinite(df[var]).sum() / len(df)) * 100
                                     row[var] = round(completeness, 2)
                                 else:
                                     row[var] = 0.0
@@ -505,6 +505,17 @@ class GHCNhProcessor:
                         summary_data.append(row)
                     except Exception as e:
                         self.logger.error(f"Could not process summary for file {file_path}: {e}")
+                        row = {
+                            'StationID': station_id,
+                            'ICAO': icao,
+                            'File': fname,
+                            'Resample Frequency': current_freq,
+                            'Start Year': None,
+                            'End Year': None,
+                        }
+                        for var in self.core_variables:
+                            row[var] = 0.0
+                        summary_data.append(row)
 
         if not summary_data:
             self.logger.warning(f"Could not generate a summary report for {station_id}. No output files found.")
