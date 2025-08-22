@@ -185,7 +185,7 @@ class GHCNhProcessor:
         qc_level: str = 'strict',
         save_outputs: bool = True,
         resample_frequencies: Optional[List[str]] = None,
-    ) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], Optional[pd.DataFrame]]:
+    ) -> Optional[pd.DataFrame]:
         """
         Downloads, cleans, and processes data into a final hourly time series.
 
@@ -218,7 +218,7 @@ class GHCNhProcessor:
         raw_df = self.get_processed_years_data(station_id, years)
         if raw_df is None:
             self.logger.error(f"No data found for station {station_id}. Aborting.")
-            return None, None, None
+            return None
 
         combined_df, metar_df, synop_df = self._create_hourly_timeseries(raw_df)
 
@@ -234,7 +234,7 @@ class GHCNhProcessor:
             if resample_frequencies:
                 self._save_resampled_frequencies(combined_df, save_path, resample_frequencies)
 
-        return combined_df, metar_df, synop_df
+        return self._create_summary_report(station_id, years, resample_frequencies if save_outputs else [])
 
     # --- Public Utility Methods ---
 
@@ -432,6 +432,85 @@ class GHCNhProcessor:
         return df_qc
 
     # --- Internal Helper Methods ---
+
+    def _create_summary_report(
+        self, station_id: str, years: List[int], frequencies: List[str]
+    ) -> Optional[pd.DataFrame]:
+        """
+        Scans output files and generates a summary of data completeness.
+
+        Args:
+            station_id (str): The GHCN_ID of the station.
+            years (List[int]): The list of years processed.
+            frequencies (List[str]): The list of resampling frequencies that were saved.
+
+        Returns:
+            Optional[pd.DataFrame]: A DataFrame summarizing the data availability.
+        """
+        summary_data = []
+        
+        start_year = min(years)
+        end_year = max(years)
+        year_str = f"{start_year}" if start_year == end_year else f"{start_year}-{end_year}"
+        base_filename = f"{station_id}_{year_str}.csv"
+        
+        icao = self.station_metadata.loc[station_id]['ICAO'] if station_id in self.station_metadata.index else None
+
+        # Define all directories and corresponding frequency labels
+        dirs_to_check = {
+            '1-hourly': '1-hourly',
+            'raw-report-type': 'raw-metar', # Special handling for metar/synop
+        }
+        for freq in frequencies:
+            dirs_to_check[freq] = freq
+
+        for dir_name, freq_label in dirs_to_check.items():
+            full_dir_path = os.path.join(self.save_dir, dir_name)
+            
+            # Construct filename based on directory
+            if freq_label == 'raw-metar':
+                filenames = {
+                    'raw-metar': f"{station_id}_{year_str}_metar.csv",
+                    'raw-synop': f"{station_id}_{year_str}_synop.csv",
+                }
+            else:
+                filenames = {freq_label: f"{station_id}_{year_str}_{freq_label}.csv"}
+            
+            for current_freq, fname in filenames.items():
+                file_path = os.path.join(full_dir_path, fname)
+
+                if os.path.exists(file_path):
+                    try:
+                        df = pd.read_csv(file_path)
+                        row = {
+                            'StationID': station_id,
+                            'ICAO': icao,
+                            'File': fname,
+                            'Resample Frequency': current_freq,
+                            'Start Year': start_year,
+                            'End Year': end_year,
+                        }
+                        
+                        if not df.empty:
+                            for var in self.core_variables:
+                                if var in df.columns:
+                                    completeness = (df[var].notna().sum() / len(df)) * 100
+                                    row[var] = round(completeness, 2)
+                                else:
+                                    row[var] = 0.0
+                        else:
+                             for var in self.core_variables:
+                                row[var] = 0.0
+
+                        summary_data.append(row)
+                    except Exception as e:
+                        self.logger.error(f"Could not process summary for file {file_path}: {e}")
+
+        if not summary_data:
+            self.logger.warning(f"Could not generate a summary report for {station_id}. No output files found.")
+            return None
+
+        return pd.DataFrame(summary_data)
 
     def _create_hourly_timeseries(
         self, df: pd.DataFrame
